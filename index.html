@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VietinBank 2/9 ASCII Countdown</title>
+  <style>
+    :root{ --blue:#0072bc; --red:#da251d; --yellow:#ffeb3b; }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{
+      margin:0;height:100%;display:grid;place-items:center;
+      background:radial-gradient(1200px 800px at 50% 40%, rgba(0,162,232,.18), transparent 60%),
+               linear-gradient(180deg, #06223a, #02121f);
+      color:#eaeaea;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace
+    }
+    #toolbar{position:fixed;top:10px;right:10px;display:flex;gap:8px;z-index:10}
+    #toolbar button{background:#0072bc;color:#fff;border:0;padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer}
+    #countdownWrap{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(135deg, rgba(0,114,188,.25), rgba(0,162,232,.12));}
+    #countdown{font-size:min(18vw,160px);font-weight:900;color:#dff3ff;text-shadow:0 0 32px rgba(0,162,232,.6),0 0 60px rgba(0,114,188,.5);letter-spacing:.06em;animation:pulse 1s ease both}
+    @keyframes pulse{0%{transform:scale(.7);opacity:.6}70%{transform:scale(1.05);opacity:1}100%{transform:scale(1);}}
+    #flag{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:var(--red);}
+    .star{width:0;height:0;border-left:3.2rem solid transparent;border-right:3.2rem solid transparent;border-bottom:6rem solid var(--yellow);transform:rotate(35deg);filter:drop-shadow(0 0 12px rgba(255,255,59,.65));position:relative}
+    .star:before,.star:after{content:"";position:absolute;display:block;width:0;height:0;border-left:3.2rem solid transparent;border-right:3.2rem solid transparent;border-bottom:6rem solid var(--yellow);}
+    .star:before{transform:rotate(-70deg);top:-3.6rem;left:-3.2rem}
+    .star:after{transform:rotate(70deg);top:-3.6rem;left:-3.2rem}
+    #flag h1{margin:.8rem 0 0;font-size:min(8vw,48px);font-weight:900;color:var(--yellow);text-align:center;line-height:1.15;text-shadow:0 0 22px rgba(255,255,59,.75)}
+    #flag h2{margin:.2rem 0 0;font-size:min(6.5vw,34px);font-weight:900;color:#ffe86b;text-align:center;letter-spacing:.02em}
+    #out {
+      position: fixed;
+      inset: 0;
+      white-space: pre;
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: #eaeaea;
+      display: none;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+    #tap{position:fixed;inset:auto 12px 12px auto;background:rgba(0,0,0,.5);color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;display:none}
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <input id="pick" type="file" accept="video/*" style="display:none" />
+    <button id="btnPick">Chọn video</button>
+  </div>
+
+  <div id="countdownWrap"><div id="countdown"></div></div>
+
+  <div id="flag">
+    <div class="star"></div>
+    <h1>CHÚC MỪNG</h1>
+    <h2>ĐẠI LỄ 2/9 · VIETINBANK BẢO LỘC</h2>
+  </div>
+
+  <pre id="out"></pre>
+  <div id="tap">Chạm để bật âm thanh</div>
+
+  <video id="v" playsinline crossorigin="anonymous" style="display:none" src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></video>
+  <canvas id="c" style="display:none"></canvas>
+
+<script>
+const v = document.getElementById('v');
+const c = document.getElementById('c');
+const ctx = c.getContext('2d', { willReadFrequently: true });
+const out = document.getElementById('out');
+const countdown = document.getElementById('countdown');
+const tap = document.getElementById('tap');
+const btnPick = document.getElementById('btnPick');
+const pick = document.getElementById('pick');
+
+const charset = " .:-=+*#%@";
+function pickChar(n) { const len = charset.length - 1; const i = Math.max(0, Math.min(len, Math.round(n * len))); return charset[i]; }
+
+// --- THAY ĐỔI LỚN 1: TẠO HÀM CHUNG ĐỂ LẤY SỐ CỘT ---
+// Hàm này sẽ quyết định số cột dựa trên chiều rộng màn hình
+function getCols() {
+  // Nếu màn hình rộng dưới 768px (điện thoại), dùng 80 cột.
+  // Nếu không, dùng 150 cột (máy tính).
+  return window.innerWidth < 768 ? 80 : 150;
+}
+
+function toAsciiFrame() {
+  if (!v.videoWidth) return "";
+  const cols = getCols(); // Sử dụng hàm mới để lấy số cột
+  const charW = 6, charH = 12, w = cols;
+  const h = Math.max(1, Math.round((v.videoHeight / v.videoWidth) * (w * (charW / charH))));
+  c.width = w; c.height = h; ctx.drawImage(v, 0, 0, w, h);
+  const rgba = ctx.getImageData(0, 0, w, h).data, rows = [];
+  for (let y = 0; y < h; y++) {
+    let row = ''; for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, r = rgba[i], g = rgba[i + 1], b = rgba[i + 2];
+      const n = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      row += pickChar(n);
+    } rows.push(row);
+  }
+  return rows.join("\n");
+}
+
+function setAsciiSize() {
+  const cols = getCols(); // Sử dụng hàm mới để lấy số cột
+  const fontSize = window.innerWidth / cols;
+  out.style.fontSize = `${fontSize}px`;
+  out.style.lineHeight = `${fontSize}px`;
+}
+
+
+function playAscii() {
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaElementSource(v);
+  source.connect(audioCtx.destination);
+  out.style.display = 'grid';
+
+  setAsciiSize();
+
+  function loop() {
+    if (v.paused || v.ended) return;
+    out.textContent = toAsciiFrame();
+    requestAnimationFrame(loop);
+  }
+
+  const playPromise = v.play();
+  if (playPromise !== undefined) {
+    playPromise.then(() => {
+      loop();
+    }).catch(error => {
+      tap.style.display = 'block';
+      const onTap = () => {
+        tap.style.display = 'none';
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        v.play().then(loop);
+        window.removeEventListener('click', onTap);
+        window.removeEventListener('touchstart', onTap);
+      };
+      window.addEventListener('click', onTap, { once: true });
+      window.addEventListener('touchstart', onTap, { once: true });
+    });
+  }
+}
+
+const steps = ["3", "2", "1"]; let i = 0;
+function showNext() {
+  if (i < steps.length) {
+    countdown.textContent = steps[i++]; countdown.style.animation = 'none'; void countdown.offsetWidth; countdown.style.animation = 'pulse 1s ease both'; setTimeout(showNext, 1000);
+  } else {
+    document.getElementById('countdownWrap').style.display = 'none';
+    document.getElementById('flag').style.display = 'flex';
+    setTimeout(() => { document.getElementById('flag').style.display = 'none'; playAscii(); }, 1800);
+  }
+}
+showNext();
+
+btnPick.onclick = () => pick.click();
+pick.onchange = () => { if (pick.files?.[0]) v.src = URL.createObjectURL(pick.files[0]); };
+
+v.addEventListener('error', () => { tap.textContent = 'Không tải được video. Nhấn "Chọn video" để dùng file cục bộ.'; tap.style.display = 'block'; });
+
+window.addEventListener('resize', setAsciiSize);
+
+</script>
+</body>
+</html>
