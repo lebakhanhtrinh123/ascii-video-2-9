@@ -63,6 +63,18 @@
       font-weight:700; letter-spacing:-.02em;
     }
 
+    /* Hint xoay */
+    #hint{
+      position:fixed;inset:0;display:none;place-items:center;
+      background:rgba(0,0,0,.55);color:#fff;z-index:30
+    }
+    #hintCard{
+      text-align:center;padding:14px 18px;background:#111;border-radius:12px;max-width:min(90vw,420px)
+    }
+    #hintCard button{
+      margin-top:10px;padding:8px 12px;border:0;border-radius:8px;cursor:pointer;background:#0072bc;color:#fff
+    }
+
     video,canvas{display:none}
   </style>
 </head>
@@ -80,6 +92,15 @@
 
   <!-- ASCII -->
   <div id="asciiWrap"><pre id="out"></pre></div>
+
+  <!-- Hint -->
+  <div id="hint">
+    <div id="hintCard">
+      <div style="font-weight:700;margin-bottom:6px">Mẹo: Xoay ngang sẽ nét hơn</div>
+      <div style="opacity:.9">Bạn có thể xem dọc bình thường. Chạm “Đã hiểu” để ẩn.</div>
+      <button id="btnHide">Đã hiểu</button>
+    </div>
+  </div>
 
   <!-- Video -->
   <video id="v" playsinline crossorigin="anonymous"
@@ -99,23 +120,48 @@ const textSlide = document.getElementById('textSlide');
 const slideBg = document.getElementById('slideBg');
 const slideOverlay = document.getElementById('slideOverlay');
 const slideText = document.getElementById('slideText');
+const hint = document.getElementById('hint');
+const btnHide = document.getElementById('btnHide');
 
 /* ==== CONFIG (Gradient ASCII) ==== */
-/* Ký tự theo kiểu bạn gửi: nhiều chữ c, l, o, d, x, k, 0… */
-const gradientChars = "  .`:,;clloooodddxxkkkOO00KKXXNNWW";
-const COLORIZE = true;  // tô màu như video; đặt false nếu muốn đơn sắc (nhẹ CPU)
+const gradientChars = "  .`:,;clloooodddxxkkkOO00KKXXNNWW"; // giống kiểu bạn gửi
+let COLORIZE = true;   // tô màu như video; có thể tự giảm khi máy yếu
 
 let asciiRows = 0;
-function getCols(){ return window.innerWidth < 768 ? 100 : 180; } // chỉnh để mịn hơn
+
+/* Số cột theo hướng màn hình: tối ưu cho dọc/ngang */
+function getCols(){
+  const w = window.innerWidth, h = window.innerHeight;
+  const portrait = h > w;
+
+  if (portrait) {
+    if (w <= 360) return 70;     // điện thoại nhỏ dọc
+    if (w <= 414) return 85;     // iPhone “Plus/Max” dọc
+    if (w <= 480) return 95;
+    return 110;                  // tablet dọc
+  } else {
+    if (w <= 640) return 120;    // điện thoại ngang
+    if (w <= 820) return 150;    // tablet ngang nhỏ
+    if (w <= 1024) return 170;
+    if (w <= 1366) return 190;
+    return 220;                  // desktop lớn
+  }
+}
+
+/* Tỉ lệ ký tự: tinh chỉnh nhẹ giữa dọc/ngang cho đúng hình */
+function charWidthFactor(){
+  const w = window.innerWidth, h = window.innerHeight;
+  return (h > w) ? 0.50 : 0.55; // dọc dùng ký tự “vuông” hơn một chút
+}
+
 function lum(r,g,b){ return (0.299*r + 0.587*g + 0.114*b)/255; }
 
-/* Trả về 1 khung ASCII dạng gradient (có/không màu) */
+/* Render 1 frame ASCII gradient */
 function toAsciiFrameGradient(){
   if(!v.videoWidth) return "";
   const cols = getCols();
 
-  // ước lượng tỉ lệ glyph monospace ~ 0.5 (rộng/cao), nên scale chiều cao cho cân
-  const charW = 0.55, charH = 1.0; // có thể tinh chỉnh
+  const charW = charWidthFactor(), charH = 1.0;
   const targetW = cols;
   const targetH = Math.max(1, Math.round((v.videoHeight / v.videoWidth) * targetW * (charW / charH)));
 
@@ -127,18 +173,15 @@ function toAsciiFrameGradient(){
   asciiRows = targetH;
 
   const maxIdx = gradientChars.length - 1;
-  let html = ""; // dùng innerHTML để thêm màu theo pixel
+  let html = "";
 
   for(let y=0;y<targetH;y++){
     for(let x=0;x<targetW;x++){
       const i = (y*targetW + x) * 4;
       const r = data[i], g = data[i+1], b = data[i+2];
-
-      // độ sáng 0..1
       const L = lum(r,g,b);
       const idx = Math.max(0, Math.min(maxIdx, Math.round(L * maxIdx)));
       const ch = gradientChars[idx];
-
       if(COLORIZE){
         html += `<span style="color:rgb(${r},${g},${b})">${ch}</span>`;
       }else{
@@ -165,23 +208,53 @@ function setAsciiSize(){
   out.style.transform = `scale(${scale})`;
 }
 
-/* Loop phát */
+/* Hint xoay (không bắt buộc) */
+function maybeShowHint(){
+  const portrait = window.innerHeight > window.innerWidth;
+  const dismissed = sessionStorage.getItem('hintDismissed') === '1';
+  hint.style.display = (!dismissed && portrait) ? 'grid' : 'none';
+}
+btnHide.addEventListener('click', ()=>{
+  sessionStorage.setItem('hintDismissed','1');
+  hint.style.display='none';
+});
+
+/* Loop phát + tự hạ cấu hình nếu máy yếu */
+let slowFrames = 0;
 function playAscii(){
   asciiWrap.style.display='grid';
   setAsciiSize();
+  maybeShowHint();
 
-  function loop(){
+  function loop(t0){
     if(v.paused || v.ended) return;
+    const start = performance.now();
     out.innerHTML = toAsciiFrameGradient();
+    const dt = performance.now() - start;
+
+    // nếu render >55ms nhiều lần → chuyển B&W cho mượt
+    if (dt > 55) slowFrames++; else slowFrames = 0;
+    if (slowFrames >= 10 && COLORIZE){
+      COLORIZE = false; slowFrames = 0;
+      // nhỏ gọn: hiện thông báo 1s
+      const toast = document.createElement('div');
+      toast.textContent = 'Đã chuyển sang Đen/Trắng để mượt hơn';
+      Object.assign(toast.style,{
+        position:'fixed',bottom:'14px',left:'50%',transform:'translateX(-50%)',
+        background:'#111',color:'#fff',padding:'8px 12px',borderRadius:'10px',zIndex:40,opacity:0.95
+      });
+      document.body.appendChild(toast);
+      setTimeout(()=>toast.remove(), 1200);
+    }
     requestAnimationFrame(loop);
   }
 
   // Autoplay + fallback
   v.muted = false; v.volume = 1;
-  v.play().then(()=>{ loop(); }).catch(()=>{
+  v.play().then(()=>{ requestAnimationFrame(loop); }).catch(()=>{
     v.muted = true;
     v.play().then(()=>{
-      loop();
+      requestAnimationFrame(loop);
       const oneTapUnmute = () => {
         v.muted = false;
         v.play().catch(()=>{});
@@ -239,9 +312,7 @@ function showSlides(slides, done){
 
 /* ==== Start chain ==== */
 function startAll(){
-  if(screen.orientation && screen.orientation.lock){
-    screen.orientation.lock('landscape').catch(()=>{});
-  }
+  // Không ép xoay, để responsive tự xử lý
   runCountdown(()=>{
     const slides = [
       { text: "PHÒNG DỊCH VỤ KHÁCH HÀNG", bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 1800 },
@@ -250,7 +321,6 @@ function startAll(){
       { text: "CHÚC MỪNG",                  bgImage: BG_FLAG, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 1600 },
       { text: "ĐẠI LỄ 2/9",                 bgImage: BG_FLAG, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 2200 },
     ];
-
     slideText.style.textShadow = "0 0 18px rgba(255,232,107,.75), 0 0 36px rgba(255,232,107,.45), 0 2px 12px rgba(0,0,0,.45)";
     showSlides(slides, ()=> playAscii());
   });
@@ -258,11 +328,11 @@ function startAll(){
 
 /* ==== Events ==== */
 v.addEventListener('loadedmetadata', setAsciiSize);
-window.addEventListener('resize', setAsciiSize);
+window.addEventListener('resize', ()=>{ setAsciiSize(); maybeShowHint(); });
 if(screen.orientation && screen.orientation.addEventListener){
-  screen.orientation.addEventListener('change', ()=> setTimeout(setAsciiSize, 80));
+  screen.orientation.addEventListener('change', ()=> setTimeout(()=>{ setAsciiSize(); maybeShowHint(); }, 80));
 }
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setAsciiSize(); });
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) { setAsciiSize(); maybeShowHint(); } });
 
 window.addEventListener('load', startAll);
 </script>
