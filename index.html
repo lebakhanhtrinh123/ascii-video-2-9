@@ -97,8 +97,7 @@ const unmute = document.getElementById('unmute');
 const btnUnmute = document.getElementById('btnUnmute');
 
 /* ==== CONFIG ==== */
-const gradientChars = "  .:,;clloooodddxxkkkOO00KKXXNNWW";
-let asciiRows = 0, COLORIZE_VIDEO = true;
+const gradientChars = "  .:,;clloooodddxxkkkOO00KKXXNNWW";let asciiRows = 0, COLORIZE_VIDEO = true;
 
 const FLAG_IMG_SRC = "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436052/hinh-nen-co-viet-nam-cho-may-tinh-1_hlcqkj.jpg";
 let flagImg = new Image(), flagReady = false;
@@ -110,14 +109,13 @@ flagImg.src = FLAG_IMG_SRC;
 function vw(){ return window.innerWidth }
 function vh(){ return window.innerHeight }
 
-/* ↓ Giảm mật độ thêm chút để bền hơn trên ĐT */
 function getCols(){
   const w = vw();
-  if (w <= 640) return 90;
-  if (w <= 820) return 120;
-  if (w <= 1024) return 140;
-  if (w <= 1366) return 165;
-  return 185;
+  if (w <= 640) return 100;
+  if (w <= 820) return 130;
+  if (w <= 1024) return 150;
+  if (w <= 1366) return 180;
+  return 200;
 }
 function lum(r,g,b){ return (0.299*r + 0.587*g + 0.114*b)/255; }
 
@@ -164,7 +162,7 @@ function toAsciiFrameGradient_Video(){
   return html;
 }
 
-/* WRAP text */
+/* ====== WRAP multi-line cho ASCII TEXT ====== */
 function wrapLinesByWidth(text, maxWidthPx, font){
   tctx.font = font;
   const words = text.split(/\s+/);
@@ -178,11 +176,13 @@ function wrapLinesByWidth(text, maxWidthPx, font){
   if(cur) lines.push(cur);
   return lines;
 }
+
+/* đảm bảo chiều cao cũng fit: giảm font nếu vượt */
 function fitFontAndWrap(text, targetW, targetH){
   let fs = Math.max(14, Math.round(targetH * 0.42));
   let font = `900 ${fs}px "Times New Roman", serif`;
   let lines = wrapLinesByWidth(text, targetW*0.9, font);
-  const totalH = (fsize, n) => n * fsize * 1.1;
+  function totalH(fsize, lineCount){ return lineCount * fsize * 1.1; }
   while ((lines.length > 2 || totalH(fs, lines.length) > targetH*0.88) && fs > 10){
     fs -= 2;
     font = `900 ${fs}px "Times New Roman", serif`;
@@ -191,13 +191,14 @@ function fitFontAndWrap(text, targetW, targetH){
   return { fs, font, lines };
 }
 
-/* SLIDE (Ảnh cờ + chữ) → ASCII */
-function drawFlagAndTextASCII(text, t, duration, slideIndex){
+/* ====== SLIDE (Ảnh cờ + chữ) → ASCII ====== */
+function drawFlagAndTextASCII(text, slideIndex){
   const cols = getCols();
   tc.width = cols;
   tc.height = Math.max(28, Math.round(cols * 0.30));
   const W = tc.width, H = tc.height;
 
+  // vẽ cờ cover
   tctx.clearRect(0,0,W,H);
   if(flagReady){
     let ratio = flagImg.width/flagImg.height || 1.6;
@@ -207,17 +208,17 @@ function drawFlagAndTextASCII(text, t, duration, slideIndex){
     tctx.drawImage(flagImg, dx, dy, dw, dh);
   }
 
+  // tính font + wrap
   let {fs, font, lines} = fitFontAndWrap(text, W, H);
   tctx.font = font;
   tctx.textAlign = 'center';
   tctx.textBaseline = 'middle';
 
-  const p = Math.max(0, Math.min(1, t/duration));
-  const scale = 0.92 + 0.08*Math.sin(p*Math.PI);
+  // *** TỐI ƯU HÓA: Vô hiệu hóa hiệu ứng zoom để không phải render lại liên tục ***
   tctx.save();
   tctx.translate(W/2, H/2);
-  tctx.scale(scale, scale);
 
+  // vẽ từng dòng, slide 7 tô “Việt Nam” đỏ
   function drawRuns(line, y, baseColor){
     tctx.lineWidth = Math.max(2, fs*0.08);
     tctx.strokeStyle = 'rgba(0,0,0,0.85)';
@@ -259,8 +260,10 @@ function drawFlagAndTextASCII(text, t, duration, slideIndex){
     drawRuns(line, y0, baseColor);
     y0 += fs*1.1;
   }
+
   tctx.restore();
 
+  // convert canvas → ASCII spans
   const data = tctx.getImageData(0,0,W,H).data;
   asciiRows = H;
   let html = "";
@@ -285,6 +288,7 @@ function playAsciiVideoThenSlides(){
   asciiWrap.style.display = "grid";
   setAsciiSize();
 
+  // thử phát video có âm thanh
   v.muted = false; v.volume = 1;
   v.play().then(()=>{
     unmute.style.display = 'none';
@@ -322,7 +326,7 @@ function playAsciiVideoThenSlides(){
   }
 }
 
-/* SLIDES LIST */
+/* ===== SLIDES LIST ===== */
 const asciiSlides = [
   "Tự hào màu cờ sắc áo",
   "VietinBank đồng hành",
@@ -336,42 +340,50 @@ const asciiSlides = [
   "trường quốc tế."
 ];
 
-/* ===== ASCII SLIDES (throttle ~16fps, không nháy đen) ===== */
+/* ===== ASCII SLIDES: TỐI ƯU HÓA HIỆU NĂNG ===== */
 function startFlagSlides(){
   bgm.volume = 1;
   bgm.play().catch(()=>{});
 
   let idx = 0;
-  const D = 2000;     // mỗi slide 2s
-  const GAP = 0;      // liền mạch
+  const D = 2000;
+  const GAP = 0;
   function playOne(){
     if(idx >= asciiSlides.length){
-      startAsciiImages(asciiImages, { duration: 2600, gap: 200, loop: true });
+      startAsciiImages(asciiImages, { duration: 2600, gap: 0, loop: true });
       return;
     }
     const text = asciiSlides[idx++];
+
+    // *** TỐI ƯU HÓA: Chỉ tạo ASCII 1 lần mỗi slide, không tính toán lại mỗi frame ***
+    out.innerHTML = drawFlagAndTextASCII(text, idx - 1);
+    setAsciiSize();
+
     const t0 = performance.now();
-    out.style.opacity = 1;
-
-    let last = 0, step = 62; // ~16fps
     function loop(){
-      const now = performance.now();
-      const t = now - t0;
+      const t = performance.now() - t0;
+      const p = Math.max(0, Math.min(1, t / D));
 
-      if(now - last >= step){
-        out.innerHTML = drawFlagAndTextASCII(text, t, D, idx-1);
-        setAsciiSize();
-        last = now;
+      // Chỉ cập nhật opacity, không render lại HTML
+      let op = 1;
+      if(p < 0.15) op = p / 0.15;
+      else if(p > 0.85) op = (1 - p) / 0.15;
+      out.style.opacity = Math.max(0, Math.min(1, op));
+
+      if(t < D){
+        requestAnimationFrame(loop);
+      } else {
+        out.style.opacity = 0;
+        setTimeout(playOne, GAP);
       }
-      if(t < D){ requestAnimationFrame(loop); }
-      else { setTimeout(playOne, GAP); }
     }
+    out.style.opacity = 0; // Bắt đầu từ mờ
     requestAnimationFrame(loop);
   }
   playOne();
 }
 
-/* COUNTDOWN & INTRO SLIDES */
+/* ===== COUNTDOWN & INTRO SLIDES ===== */
 function runCountdown(next){
   const steps=["3","2","1"]; let i=0;
   countdownWrap.style.display='grid';
@@ -387,8 +399,10 @@ function runCountdown(next){
     }
   }; tick();
 }
+
 const BG_BLUE="https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436137/3654dadd-589c-49de-8241-1748d8ef4a69_yx4mjg.webp";
 const BG_FLAG="https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436056/hinh-nen-co-viet-nam-cho-may-tinh-1_wwoocv.jpg";
+
 function showSlides(slides, done){
   let idx=0;
   textSlide.style.opacity = 0;
@@ -407,24 +421,28 @@ function showSlides(slides, done){
 
     textSlide.style.display = 'flex';
     requestAnimationFrame(()=> textSlide.style.opacity = 1);
-    setTimeout(()=>{ textSlide.style.opacity = 0; setTimeout(showOne, 50); }, s.duration);
+    setTimeout(()=>{
+      textSlide.style.opacity = 0;
+      setTimeout(showOne, 50);
+    }, s.duration);
   };
   showOne();
 }
 
-/* FULLSCREEN (tuỳ chọn) */
+/* ===== FULLSCREEN (tuỳ chọn) ===== */
 function isFullscreen(){ return !!(document.fullscreenElement||document.webkitFullscreenElement||document.msFullscreenElement); }
 function enterFullscreen(el){ const req = el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen; if(req) req.call(el); }
 fsBtn.addEventListener('click', ()=> enterFullscreen(document.documentElement));
 document.addEventListener('fullscreenchange', ()=> fsBtn.style.display = isFullscreen()? 'none' : 'block');
 document.addEventListener('webkitfullscreenchange', ()=> fsBtn.style.display = isFullscreen()? 'none' : 'block');
 
-/* ASCII IMAGE ALBUM (throttle ~14fps) */
+/* === NEW: ASCII IMAGE ALBUM === */
 const asciiImages = [
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_1_l2j7vg.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_2_rrqetv.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625495/Ho_Hoan_Kiem_Hanoi_Vietnam__Stock_Photo_-_Image_of_flag_temple__5825156_ey7vcj.jpg",
 ];
+
 function imgToAscii(img){
   const W = getCols(), H = Math.round(W * 0.55);
   tc.width = W; tc.height = H; tctx.clearRect(0,0,W,H);
@@ -447,7 +465,8 @@ function imgToAscii(img){
   }
   return html;
 }
-function startAsciiImages(links, {duration=2600, gap=200, loop=true} = {}){
+
+function startAsciiImages(links, {duration=2600, gap=280, loop=true} = {}){
   let i = 0, stop = false;
   (function next(){
     if(stop || !links.length) return;
@@ -455,18 +474,14 @@ function startAsciiImages(links, {duration=2600, gap=200, loop=true} = {}){
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const t0 = performance.now();
-      let last = 0, step = 70; // ~14fps
       (function frame(){
-        const now = performance.now(), t = now - t0, p = Math.max(0, Math.min(1, t/duration));
-        if(now - last >= step){
-          let op = 1; if(p < .15) op = p/.15; else if(p > .85) op = (1-p)/.15;
-          out.style.opacity = op;
-          out.innerHTML = imgToAscii(img);
-          setAsciiSize();
-          last = now;
-        }
+        const t = performance.now() - t0, p = Math.max(0, Math.min(1, t/duration));
+        let op = 1; if(p < .15) op = p/.15; else if(p > .85) op = (1-p)/.15;
+        out.style.opacity = op;
+        out.innerHTML = imgToAscii(img);
+        setAsciiSize();
         if(t < duration) requestAnimationFrame(frame);
-        else { out.style.opacity = 1; i++; setTimeout(()=>{ next(); }, gap); }
+        else { out.style.opacity = 0; i++; setTimeout(()=>{ next(); }, gap); }
       })();
     };
     img.onerror = () => { i++; next(); };
@@ -475,9 +490,11 @@ function startAsciiImages(links, {duration=2600, gap=200, loop=true} = {}){
   return () => { stop = true; };
 }
 
-/* START */
+/* ===== START ===== */
 function startAll(){
+  // hiện nút fullscreen khi ngang (tuỳ chọn)
   fsBtn.style.display = 'block';
+
   const slides = [
     { text: "PHÒNG DỊCH VỤ KHÁCH HÀNG", bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 1800 },
     { text: "VIETINBANK",                 bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 1600 },
@@ -490,8 +507,10 @@ function startAll(){
     playAsciiVideoThenSlides();
   }));
 }
+
 window.addEventListener('resize', setAsciiSize);
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setAsciiSize(); });
+
 window.addEventListener('load', startAll);
 </script>
 </body>
