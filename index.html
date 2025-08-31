@@ -9,16 +9,15 @@
     *{box-sizing:border-box}
     html,body{height:100%;-webkit-text-size-adjust:none;text-size-adjust:none}
     body{
-      margin:0;height:100%;display:grid;place-items:center;background:#000;color:#eaeaea;
+      margin:0;height:100dvh;display:grid;place-items:center;background:#000;color:#eaeaea;
       font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
       overflow:hidden;transition:background 300ms ease;
     }
 
-    /* STAGE: bọc toàn bộ nội dung; dọc thì xoay 90deg để giả landscape */
+    /* STAGE: khi dọc xoay 90deg (giả landscape), khi ngang chiếm đúng 100vw x 100dvh */
     #stage{
-      position:fixed;inset:0;display:block;
+      position:fixed;inset:0;display:block;width:100vw;height:100dvh;
       transform-origin:center center;will-change:transform;
-      width:100%;height:100%;
     }
     .emu-lands{ transform:rotate(90deg) translateZ(0); }
 
@@ -37,7 +36,7 @@
       100%{transform:scale(1)}
     }
 
-    /* Slides ảnh nền (intro) */
+    /* Intro slides (ảnh nền) */
     #textSlide{
       position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;z-index:15;overflow:hidden
     }
@@ -63,16 +62,11 @@
       100%{text-shadow:0 0 20px rgba(255,255,255,.48)}
     }
 
-    /* ASCII khung hiển thị */
+    /* ASCII khung hiển thị (video & slides) */
     #asciiWrap{
       position:fixed;inset:0;display:none;place-items:center;z-index:10;overflow:hidden;
+      background:#000; /* video phase */
       transition:background 250ms ease;
-    }
-    /* theme mặc định (video) */
-    #asciiWrap.video-mode{ background:#000; }
-    /* theme xanh cho slide chữ */
-    #asciiWrap.text-mode{
-      background:linear-gradient(180deg,#003a7a 0%, #0061a8 45%, #0072bc 100%);
     }
     #out{
       white-space:pre;margin:0;padding:0;background:transparent;
@@ -111,21 +105,21 @@
     <!-- Countdown -->
     <div id="countdownWrap"><div id="countdown"></div></div>
 
-    <!-- Slides ảnh nền (intro) -->
+    <!-- Intro slides (ảnh nền) -->
     <div id="textSlide">
       <div id="slideBg"></div>
       <div id="slideOverlay"></div>
       <h1 id="slideText"></h1>
     </div>
 
-    <!-- ASCII (video & text) -->
-    <div id="asciiWrap" class="video-mode"><pre id="out"></pre></div>
+    <!-- ASCII (video & slides) -->
+    <div id="asciiWrap"><pre id="out"></pre></div>
 
     <!-- Hint -->
     <div id="hint">
       <div id="hintCard">
         <div style="font-weight:700;margin-bottom:6px">Mẹo: Xoay ngang sẽ nét hơn</div>
-        <div style="opacity:.9">Đang tự xoay giao diện để dễ nhìn. Chạm “Đã hiểu” để ẩn.</div>
+        <div style="opacity:.9">Nếu muốn, bấm “Toàn màn hình” khi đang ngang.</div>
         <button id="btnHide">Đã hiểu</button>
       </div>
     </div>
@@ -141,7 +135,7 @@
   <audio id="bgm" loop crossorigin="anonymous"
          src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756622154/M%C3%A1u_%C4%90%E1%BB%8F_Da_V%C3%A0ng_mp3cut.net_vhw8k0.mp3"></audio>
 
-  <!-- Canvas: 1 cho video, 1 cho text -->
+  <!-- Canvas: 1 cho video, 1 cho slide (ảnh cờ + chữ) -->
   <canvas id="c"></canvas>
   <canvas id="tc"></canvas>
 
@@ -169,8 +163,10 @@ const fsBtn = document.getElementById('fsBtn');
 
 /* ==== CONFIG ==== */
 const gradientChars = "  .`:,;clloooodddxxkkkOO00KKXXNNWW";
-let COLORIZE_VIDEO = true;   // video phase: tô màu theo video (tự hạ cấu hình nếu lag)
+let COLORIZE_VIDEO = true;    // video: tô màu theo video
 let asciiRows = 0;
+const FLAG_IMG_SRC = "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436052/hinh-nen-co-viet-nam-cho-may-tinh-1_hlcqkj.jpg";
+let flagImg=null, flagReady=false;
 
 /* Helpers: fullscreen */
 function isFullscreen(){
@@ -209,7 +205,7 @@ function getCols(){
   if (w <= 640) return 120;
   if (w <= 820) return 150;
   if (w <= 1024) return 170;
-  if (w <= 1366) return 200;    /* tăng nhẹ khi ngang to để mịn và vẫn cover */
+  if (w <= 1366) return 200;
   return 230;
 }
 function charWidthFactor(){ return 0.55; }
@@ -250,20 +246,42 @@ function toAsciiFrameGradient_Video(){
   return html;
 }
 
-/* ====== TEXT → ASCII (nền xanh, chữ trắng; riêng “Việt Nam” màu đỏ ở slide 7) ====== */
-function drawTextColoredASCII(text, t, duration, slideIndex){
+/* ====== LOAD ẢNH CỜ ====== */
+function preloadFlag(){
+  return new Promise((res, rej)=>{
+    if(flagReady) return res();
+    flagImg = new Image();
+    flagImg.crossOrigin = "anonymous";
+    flagImg.onload = ()=>{ flagReady=true; res(); };
+    flagImg.onerror = rej;
+    flagImg.src = FLAG_IMG_SRC;
+  });
+}
+
+/* ====== SLIDE (Ảnh cờ + chữ) → ASCII ====== */
+function drawFlagAndTextASCII(text, t, duration, slideIndex){
   const cols = getCols();
   tc.width = cols;
   tc.height = Math.max(28, Math.round(cols * 0.30));
-  tctx.clearRect(0,0,tc.width,tc.height);
 
-  // Font & wrap
-  let fs = Math.max(14, Math.round(tc.height * 0.42));
+  // Vẽ ảnh cờ "cover" vào tc
+  const ratio = flagImg.width/flagImg.height || 1.6;
+  const targetW = tc.width;
+  const targetH = tc.height;
+  let dw = targetW, dh = targetW/ratio;
+  if(dh < targetH){ dh = targetH; dw = dh*ratio; }
+  const dx = (targetW - dw)/2, dy = (targetH - dh)/2;
+
+  tctx.clearRect(0,0,targetW,targetH);
+  tctx.drawImage(flagImg, dx, dy, dw, dh);
+
+  // Vẽ chữ (trắng; slide 7: “Việt Nam” đỏ) – chỉ zoom in/out
+  let fs = Math.max(14, Math.round(targetH * 0.42));
   tctx.font = `900 ${fs}px "Times New Roman", Times, serif`;
   tctx.textAlign = 'center';
   tctx.textBaseline = 'middle';
 
-  const maxLineW = tc.width * 0.9;
+  const maxLineW = targetW * 0.9;
   function wrap(s){
     const words = s.split(' ');
     const lines=[]; let cur="";
@@ -280,17 +298,16 @@ function drawTextColoredASCII(text, t, duration, slideIndex){
     lines = wrap(text);
   }
 
-  // Chỉ zoom in/out
   const p = Math.max(0, Math.min(1, t/duration));
   const scale = 0.92 + 0.08*Math.sin(p*Math.PI);
   tctx.save();
-  tctx.translate(tc.width/2, tc.height/2);
+  tctx.translate(targetW/2, targetH/2);
   tctx.scale(scale, scale);
 
   function drawLine(line, y, baseColor, runs){
+    // viền mảnh để nổi
     tctx.lineWidth = Math.max(2, fs*0.08);
     tctx.strokeStyle = 'rgba(0,0,0,0.85)';
-
     if(runs && runs.length){
       const widths = runs.map(r => tctx.measureText(r.text).width);
       const totalW = widths.reduce((a,b)=>a+b,0);
@@ -310,7 +327,6 @@ function drawTextColoredASCII(text, t, duration, slideIndex){
 
   const totalH = lines.length * fs * 1.1;
   let y = -totalH/2 + fs*0.5;
-
   const isSpecial7 = (slideIndex === 6);
   const baseColor = '#ffffff';
   for(const line of lines){
@@ -326,20 +342,19 @@ function drawTextColoredASCII(text, t, duration, slideIndex){
     }
     y += fs*1.1;
   }
-
   tctx.restore();
 
-  // Canvas → ASCII spans
-  const data = tctx.getImageData(0,0,tc.width,tc.height).data;
-  asciiRows = tc.height;
+  // Convert canvas → ASCII spans có màu
+  const data = tctx.getImageData(0,0,targetW,targetH).data;
+  asciiRows = targetH;
   const maxIdx = gradientChars.length - 1;
   let html = "";
 
-  for(let yy=0; yy<tc.height; yy++){
-    for(let xx=0; xx<tc.width; xx++){
-      const i = (yy*tc.width + xx)*4;
+  for(let yy=0; yy<targetH; yy++){
+    for(let xx=0; xx<targetW; xx++){
+      const i = (yy*targetW + xx)*4;
       const a = data[i+3];
-      if(a < 20){ html += ' '; continue; } // nền trong suốt → space
+      if(a < 20){ html += ' '; continue; }
 
       const r = data[i], g = data[i+1], b = data[i+2];
       const L = lum(r,g,b);
@@ -352,7 +367,7 @@ function drawTextColoredASCII(text, t, duration, slideIndex){
   return html;
 }
 
-/* Fit + Cover để luôn FULL màn hình (cả ngang & dọc) */
+/* Fit + Cover để luôn FULL màn hình */
 function setAsciiSize(){
   if(asciiRows===0) return;
   const cols = getCols();
@@ -367,7 +382,7 @@ function setAsciiSize(){
   out.style.transform = `scale(${scale})`;
 }
 
-/* Ngang: bỏ giả landscape, Dọc: bật xoay giả */
+/* Ngang: bỏ xoay; Dọc: bật xoay giả */
 function applyLandscapeEmulation(){
   if(!isPortrait()){
     stage.classList.remove('emu-lands');
@@ -379,7 +394,7 @@ function applyLandscapeEmulation(){
     const scale = Math.max(w0 / h, h0 / w);
     stage.style.transform = `rotate(90deg) scale(${scale})`;
   }
-  updateFsBtn(); // cập nhật hiển thị nút fullscreen
+  updateFsBtn();
 }
 
 /* Hint */
@@ -394,17 +409,15 @@ btnHide.addEventListener('click', ()=>{
 
 /* ========== PLAYBACK ========== */
 let slowFrames = 0;
-function playAsciiVideoThenText(){
+function playAsciiVideoThenSlides(){
   asciiWrap.style.display='grid';
-  asciiWrap.classList.remove('text-mode');
-  asciiWrap.classList.add('video-mode');
   setAsciiSize();
   applyLandscapeEmulation();
   maybeShowHint();
 
-  // 1) VIDEO → ASCII
+  // VIDEO → ASCII
   function loopVideo(){
-    if(v.paused || v.ended) return startAsciiTextSlides(); // chuyển sang slide chữ
+    if(v.paused || v.ended) return startFlagSlides(); // sang slides
     const t0 = performance.now();
     out.innerHTML = toAsciiFrameGradient_Video();
     const dt = performance.now() - t0;
@@ -439,7 +452,7 @@ function playAsciiVideoThenText(){
   });
 }
 
-/* ========== ASCII TEXT SLIDES (nền xanh – chữ trắng; slide 7 tô “Việt Nam” đỏ) ========== */
+/* ========== SLIDES (ẢNH CỜ + CHỮ) ========== */
 const asciiSlides = [
   "Tự hào màu cờ sắc áo",
   "VietinBank đồng hành",
@@ -453,35 +466,32 @@ const asciiSlides = [
   "trường quốc tế."
 ];
 
-function startAsciiTextSlides(){
-  // đổi theme → xanh, bật nhạc
-  asciiWrap.classList.remove('video-mode');
-  asciiWrap.classList.add('text-mode');
-
-  // Cố gắng play nhạc; nếu bị chặn, chờ user tap
+async function startFlagSlides(){
+  // bật nhạc; nếu bị chặn → chạm 1 cái
   bgm.volume = 1.0;
   bgm.play().catch(()=>{
     const tryPlay = () => { bgm.play().catch(()=>{}); document.removeEventListener('pointerdown', tryPlay, {capture:true}); };
     document.addEventListener('pointerdown', tryPlay, {once:true, capture:true});
   });
 
+  await preloadFlag();
+
   let idx = 0;
-  const baseDur = 1800;  // thời lượng 1 slide
-  const between = 100;   // trễ giữa slide
+  const baseDur = 1800;
+  const between = 120;
 
   function playOne(){
     if(idx >= asciiSlides.length){
-      // kết thúc: giữ slide cuối
       setTimeout(()=>{}, 1500);
       return;
     }
     const text = asciiSlides[idx++];
-    const D = baseDur; // chỉ zoom in/out
+    const D = baseDur;
 
     const t0 = performance.now();
     function loop(){
       const t = performance.now() - t0;
-      out.innerHTML = drawTextColoredASCII(text, t, D, idx-1);
+      out.innerHTML = drawFlagAndTextASCII(text, t, D, idx-1);
       setAsciiSize();
       if(t < D){ requestAnimationFrame(loop); }
       else{ setTimeout(playOne, between); }
@@ -546,7 +556,7 @@ function startAll(){
       { text: "ĐẠI LỄ 2/9",                 bgImage: BG_FLAG, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 2200 },
     ];
     slideText.style.textShadow = "0 0 18px rgba(255,232,107,.75), 0 0 36px rgba(255,232,107,.45), 0 2px 12px rgba(0,0,0,.45)";
-    showSlides(slides, ()=> playAsciiVideoThenText());
+    showSlides(slides, ()=> playAsciiVideoThenSlides());
   });
 }
 
