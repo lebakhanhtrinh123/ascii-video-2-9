@@ -47,26 +47,63 @@
       font-weight:800;padding:10px 16px;border-radius:10px;border:none;background:#1e88e5;color:#fff
     }
 
+    /* === NEW: Overlay chặn Zalo WebView === */
+    #openExternal{
+      position:fixed;inset:0;display:none;place-items:center;z-index:9999;
+      background:#000;color:#fff;text-align:center;padding:20px
+    }
+    #openExternal .card{
+      max-width:560px;margin:0 16px;background:#111;border-radius:14px;padding:20px;
+      box-shadow:0 8px 32px rgba(0,0,0,.45)
+    }
+    #openExternal h2{margin:0 0 10px 0;font-size:22px}
+    #openExternal p{margin:8px 0 14px 0;opacity:.95;line-height:1.5}
+    #openExternal .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+    #openExternal button{
+      padding:10px 16px;border:none;border-radius:10px;font-weight:800;cursor:pointer
+    }
+    #btnExternal{background:#1e88e5;color:#fff}
+    #btnContinue{background:#333;color:#fff}
+
     video,canvas,audio{display:none}
   </style>
 </head>
 <body>
 <div id="stage">
+  <!-- Countdown -->
   <div id="countdownWrap"><div id="countdown"></div></div>
 
+  <!-- Intro slides -->
   <div id="textSlide">
     <div id="slideBg"></div>
     <div id="slideOverlay"></div>
     <h1 id="slideText"></h1>
   </div>
 
+  <!-- ASCII -->
   <div id="asciiWrap"><pre id="out"></pre></div>
 
+  <!-- Fullscreen (optional) -->
   <button id="fsBtn">Toàn màn hình</button>
 
+  <!-- Unmute gate (khi trình duyệt chặn âm thanh) -->
   <div id="unmute"><button id="btnUnmute">Bật âm thanh</button></div>
 </div>
 
+<!-- === NEW: Overlay chặn Zalo WebView === -->
+<div id="openExternal">
+  <div class="card">
+    <h2>Vui lòng mở bằng Chrome hoặc Safari</h2>
+    <p>Để xem video và hiệu ứng ASCII mượt nhất, hãy mở liên kết này bằng trình duyệt <b>Chrome</b> (Android) hoặc <b>Safari</b> (iPhone).</p>
+    <div class="actions">
+      <button id="btnExternal">Mở bằng trình duyệt</button>
+      <button id="btnContinue">Tiếp tục xem trong Zalo (không khuyến nghị)</button>
+    </div>
+    <p style="font-size:12px;opacity:.75;margin-top:12px">Nếu nút không hoạt động, hãy bấm menu “⋮/…” của Zalo và chọn “Mở bằng trình duyệt”.</p>
+  </div>
+</div>
+
+<!-- Media -->
 <video id="v" playsinline crossorigin="anonymous"
  src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></video>
 <audio id="bgm" loop crossorigin="anonymous"
@@ -96,8 +133,13 @@ const fsBtn = document.getElementById('fsBtn');
 const unmute = document.getElementById('unmute');
 const btnUnmute = document.getElementById('btnUnmute');
 
+/* NEW: overlay elems */
+const openExternal = document.getElementById('openExternal');
+const btnExternal = document.getElementById('btnExternal');
+const btnContinue = document.getElementById('btnContinue');
+
 /* ==== CONFIG ==== */
-const gradientChars = "  .:,;clloooodddxxkkkOO00KKXXNNWW";let asciiRows = 0, COLORIZE_VIDEO = true;
+const gradientChars = "  .:,;clloooodddxxkkkOO00KKXXNNWW"; let asciiRows = 0, COLORIZE_VIDEO = true;
 
 const FLAG_IMG_SRC = "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436052/hinh-nen-co-viet-nam-cho-may-tinh-1_hlcqkj.jpg";
 let flagImg = new Image(), flagReady = false;
@@ -108,7 +150,6 @@ flagImg.src = FLAG_IMG_SRC;
 /* Utils */
 function vw(){ return window.innerWidth }
 function vh(){ return window.innerHeight }
-
 function getCols(){
   const w = vw();
   if (w <= 640) return 100;
@@ -118,6 +159,28 @@ function getCols(){
   return 200;
 }
 function lum(r,g,b){ return (0.299*r + 0.587*g + 0.114*b)/255; }
+
+/* === NEW: Detect Zalo WebView & open outside === */
+function isZaloWebView(){
+  return /Zalo/i.test(navigator.userAgent || "");
+}
+function openInExternalBrowser(){
+  const url = window.location.href;
+  // 1) Mở tab ngoài (đa số webview sẽ đẩy ra trình duyệt)
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
+
+  // 2) Android fallback: intent → Chrome
+  if (/Android/i.test(navigator.userAgent)) {
+    const intent = 'intent://' + url.replace(/^https?:\/\//,'') + '#Intent;scheme=https;package=com.android.chrome;end';
+    setTimeout(()=>{ window.location.href = intent; }, 150);
+  }
+  // 3) iOS: window.open thêm lần nữa để gợi ý “Open in Safari”
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    setTimeout(()=>{ window.open(url, '_blank'); }, 120);
+  }
+}
 
 /* Fit + Cover để luôn FULL màn hình */
 function setAsciiSize(){
@@ -176,8 +239,6 @@ function wrapLinesByWidth(text, maxWidthPx, font){
   if(cur) lines.push(cur);
   return lines;
 }
-
-/* đảm bảo chiều cao cũng fit: giảm font nếu vượt */
 function fitFontAndWrap(text, targetW, targetH){
   let fs = Math.max(14, Math.round(targetH * 0.42));
   let font = `900 ${fs}px "Times New Roman", serif`;
@@ -192,13 +253,13 @@ function fitFontAndWrap(text, targetW, targetH){
 }
 
 /* ====== SLIDE (Ảnh cờ + chữ) → ASCII ====== */
-function drawFlagAndTextASCII(text, slideIndex){
+function drawFlagAndTextASCII(text, t, duration, slideIndex){
   const cols = getCols();
   tc.width = cols;
   tc.height = Math.max(28, Math.round(cols * 0.30));
   const W = tc.width, H = tc.height;
 
-  // vẽ cờ cover
+  // nền cờ cover
   tctx.clearRect(0,0,W,H);
   if(flagReady){
     let ratio = flagImg.width/flagImg.height || 1.6;
@@ -208,73 +269,44 @@ function drawFlagAndTextASCII(text, slideIndex){
     tctx.drawImage(flagImg, dx, dy, dw, dh);
   }
 
-  // tính font + wrap
+  // chữ
   let {fs, font, lines} = fitFontAndWrap(text, W, H);
-  tctx.font = font;
-  tctx.textAlign = 'center';
-  tctx.textBaseline = 'middle';
+  tctx.font = font; tctx.textAlign = 'center'; tctx.textBaseline = 'middle';
+  const p = Math.max(0, Math.min(1, t/duration));
+  const scale = 0.92 + 0.08*Math.sin(p*Math.PI);
+  tctx.save(); tctx.translate(W/2, H/2); tctx.scale(scale, scale);
 
-  // *** TỐI ƯU HÓA: Vô hiệu hóa hiệu ứng zoom để không phải render lại liên tục ***
-  tctx.save();
-  tctx.translate(W/2, H/2);
-
-  // vẽ từng dòng, slide 7 tô “Việt Nam” đỏ
   function drawRuns(line, y, baseColor){
     tctx.lineWidth = Math.max(2, fs*0.08);
     tctx.strokeStyle = 'rgba(0,0,0,0.85)';
     const isSpecial7 = (slideIndex === 6) && line.includes('Việt Nam');
     if(!isSpecial7){
-      tctx.strokeText(line, 0, y);
-      tctx.fillStyle = baseColor;
-      tctx.fillText(line, 0, y);
-      return;
+      tctx.strokeText(line, 0, y); tctx.fillStyle = baseColor; tctx.fillText(line, 0, y); return;
     }
     const parts = line.split('Việt Nam');
     const widths = parts.map(p => tctx.measureText(p).width);
     const vnW = tctx.measureText('Việt Nam').width;
     const totalW = widths[0] + vnW + (parts[1] ? widths[1] : 0);
     let cursor = -totalW/2;
-
-    if(parts[0]){
-      tctx.strokeText(parts[0], cursor + widths[0]/2, y);
-      tctx.fillStyle = baseColor;
-      tctx.fillText(parts[0], cursor + widths[0]/2, y);
-      cursor += widths[0];
-    }
-    tctx.strokeText('Việt Nam', cursor + vnW/2, y);
-    tctx.fillStyle = '#ff1a1a';
-    tctx.fillText('Việt Nam', cursor + vnW/2, y);
-    cursor += vnW;
-
-    if(parts[1]){
-      tctx.strokeText(parts[1], cursor + widths[1]/2, y);
-      tctx.fillStyle = baseColor;
-      tctx.fillText(parts[1], cursor + widths[1]/2, y);
-    }
+    if(parts[0]){ tctx.strokeText(parts[0], cursor + widths[0]/2, y); tctx.fillStyle = baseColor; tctx.fillText(parts[0], cursor + widths[0]/2, y); cursor += widths[0]; }
+    tctx.strokeText('Việt Nam', cursor + vnW/2, y); tctx.fillStyle = '#ff1a1a'; tctx.fillText('Việt Nam', cursor + vnW/2, y); cursor += vnW;
+    if(parts[1]){ tctx.strokeText(parts[1], cursor + widths[1]/2, y); tctx.fillStyle = baseColor; tctx.fillText(parts[1], cursor + widths[1]/2, y); }
   }
 
   const baseColor = '#ffffff';
-  const totalH = lines.length * fs * 1.1;
-  let y0 = -totalH/2 + fs*0.5;
-  for(const line of lines){
-    drawRuns(line, y0, baseColor);
-    y0 += fs*1.1;
-  }
-
+  const totalH = lines.length * fs * 1.1; let y0 = -totalH/2 + fs*0.5;
+  for(const line of lines){ drawRuns(line, y0, baseColor); y0 += fs*1.1; }
   tctx.restore();
 
-  // convert canvas → ASCII spans
+  // canvas → ASCII spans
   const data = tctx.getImageData(0,0,W,H).data;
-  asciiRows = H;
-  let html = "";
-  const maxIdx = gradientChars.length - 1;
+  asciiRows = H; let html = ""; const maxIdx = gradientChars.length - 1;
   for(let yy=0; yy<H; yy++){
     for(let xx=0; xx<W; xx++){
       const i = (yy*W + xx)*4, a = data[i+3];
       if(a < 20){ html += ' '; continue; }
       const r=data[i], g=data[i+1], b=data[i+2];
-      const L = lum(r,g,b);
-      const idx = Math.max(0, Math.min(maxIdx, Math.round(L*maxIdx)));
+      const L = lum(r,g,b); const idx = Math.max(0, Math.min(maxIdx, Math.round(L*maxIdx)));
       const ch = gradientChars[idx] || ' ';
       html += `<span style="color:rgb(${r},${g},${b})">${ch}</span>`;
     }
@@ -283,7 +315,7 @@ function drawFlagAndTextASCII(text, slideIndex){
   return html;
 }
 
-/* ===== FLOW: VIDEO → SLIDES (một lần, có âm thanh) ===== */
+/* ===== FLOW: VIDEO → SLIDES (one-shot) ===== */
 function playAsciiVideoThenSlides(){
   asciiWrap.style.display = "grid";
   setAsciiSize();
@@ -312,10 +344,7 @@ function playAsciiVideoThenSlides(){
     let done = false;
     function loop(){
       if(v.ended || v.paused){
-        if(!done){
-          done = true;
-          startFlagSlides();
-        }
+        if(!done){ done = true; startFlagSlides(); }
         return;
       }
       out.innerHTML = toAsciiFrameGradient_Video();
@@ -340,44 +369,34 @@ const asciiSlides = [
   "trường quốc tế."
 ];
 
-/* ===== ASCII SLIDES: TỐI ƯU HÓA HIỆU NĂNG ===== */
+/* ===== ASCII SLIDES (mượt) ===== */
 function startFlagSlides(){
   bgm.volume = 1;
   bgm.play().catch(()=>{});
 
   let idx = 0;
-  const D = 2000;
-  const GAP = 0;
+  const D = 2000;       // mỗi slide 2s
+  const GAP = 0;        // liền mạch, không khoảng đen
   function playOne(){
     if(idx >= asciiSlides.length){
+      // album ảnh ascii sau khi xong chữ
       startAsciiImages(asciiImages, { duration: 2600, gap: 0, loop: true });
       return;
     }
     const text = asciiSlides[idx++];
-
-    // *** TỐI ƯU HÓA: Chỉ tạo ASCII 1 lần mỗi slide, không tính toán lại mỗi frame ***
-    out.innerHTML = drawFlagAndTextASCII(text, idx - 1);
-    setAsciiSize();
-
     const t0 = performance.now();
     function loop(){
       const t = performance.now() - t0;
       const p = Math.max(0, Math.min(1, t / D));
-
-      // Chỉ cập nhật opacity, không render lại HTML
-      let op = 1;
-      if(p < 0.15) op = p / 0.15;
-      else if(p > 0.85) op = (1 - p) / 0.15;
+      // fade in/out
+      let op = 1; if(p < 0.15) op = p/0.15; else if(p > 0.85) op = (1-p)/0.15;
       out.style.opacity = Math.max(0, Math.min(1, op));
-
-      if(t < D){
-        requestAnimationFrame(loop);
-      } else {
-        out.style.opacity = 0;
-        setTimeout(playOne, GAP);
-      }
+      out.innerHTML = drawFlagAndTextASCII(text, t, D, idx-1);
+      setAsciiSize();
+      if(t < D){ requestAnimationFrame(loop); }
+      else { out.style.opacity = 0; setTimeout(playOne, GAP); }
     }
-    out.style.opacity = 0; // Bắt đầu từ mờ
+    out.style.opacity = 0;
     requestAnimationFrame(loop);
   }
   playOne();
@@ -399,10 +418,8 @@ function runCountdown(next){
     }
   }; tick();
 }
-
 const BG_BLUE="https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436137/3654dadd-589c-49de-8241-1748d8ef4a69_yx4mjg.webp";
 const BG_FLAG="https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436056/hinh-nen-co-viet-nam-cho-may-tinh-1_wwoocv.jpg";
-
 function showSlides(slides, done){
   let idx=0;
   textSlide.style.opacity = 0;
@@ -429,20 +446,19 @@ function showSlides(slides, done){
   showOne();
 }
 
-/* ===== FULLSCREEN (tuỳ chọn) ===== */
+/* FULLSCREEN (tuỳ chọn) */
 function isFullscreen(){ return !!(document.fullscreenElement||document.webkitFullscreenElement||document.msFullscreenElement); }
 function enterFullscreen(el){ const req = el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen; if(req) req.call(el); }
 fsBtn.addEventListener('click', ()=> enterFullscreen(document.documentElement));
 document.addEventListener('fullscreenchange', ()=> fsBtn.style.display = isFullscreen()? 'none' : 'block');
 document.addEventListener('webkitfullscreenchange', ()=> fsBtn.style.display = isFullscreen()? 'none' : 'block');
 
-/* === NEW: ASCII IMAGE ALBUM === */
+/* === ASCII IMAGE ALBUM === */
 const asciiImages = [
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_1_l2j7vg.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_2_rrqetv.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625495/Ho_Hoan_Kiem_Hanoi_Vietnam__Stock_Photo_-_Image_of_flag_temple__5825156_ey7vcj.jpg",
 ];
-
 function imgToAscii(img){
   const W = getCols(), H = Math.round(W * 0.55);
   tc.width = W; tc.height = H; tctx.clearRect(0,0,W,H);
@@ -465,8 +481,7 @@ function imgToAscii(img){
   }
   return html;
 }
-
-function startAsciiImages(links, {duration=2600, gap=280, loop=true} = {}){
+function startAsciiImages(links, {duration=2600, gap=0, loop=true} = {}){
   let i = 0, stop = false;
   (function next(){
     if(stop || !links.length) return;
@@ -492,8 +507,13 @@ function startAsciiImages(links, {duration=2600, gap=280, loop=true} = {}){
 
 /* ===== START ===== */
 function startAll(){
-  // hiện nút fullscreen khi ngang (tuỳ chọn)
-  fsBtn.style.display = 'block';
+  // NEW: nếu đang ở Zalo WebView → chặn và yêu cầu mở bằng trình duyệt
+  if (isZaloWebView()){
+    openExternal.style.display = 'grid';
+    return; // dừng mọi thứ bên dưới để tránh lỗi xoay/âm thanh
+  }
+
+  fsBtn.style.display = 'block'; // tuỳ chọn
 
   const slides = [
     { text: "PHÒNG DỊCH VỤ KHÁCH HÀNG", bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 1800 },
@@ -510,6 +530,13 @@ function startAll(){
 
 window.addEventListener('resize', setAsciiSize);
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setAsciiSize(); });
+
+/* NEW: nút overlay */
+btnExternal.addEventListener('click', openInExternalBrowser);
+btnContinue.addEventListener('click', ()=>{
+  openExternal.style.display = 'none';
+  startAll(); // cho phép chạy tiếp ngay trong Zalo (không khuyến nghị)
+});
 
 window.addEventListener('load', startAll);
 </script>
