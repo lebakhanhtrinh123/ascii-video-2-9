@@ -52,27 +52,21 @@
 </head>
 <body>
 <div id="stage">
-  <!-- Countdown -->
   <div id="countdownWrap"><div id="countdown"></div></div>
 
-  <!-- Intro slides -->
   <div id="textSlide">
     <div id="slideBg"></div>
     <div id="slideOverlay"></div>
     <h1 id="slideText"></h1>
   </div>
 
-  <!-- ASCII -->
   <div id="asciiWrap"><pre id="out"></pre></div>
 
-  <!-- Fullscreen (optional) -->
   <button id="fsBtn">Toàn màn hình</button>
 
-  <!-- Unmute gate (khi trình duyệt chặn âm thanh) -->
   <div id="unmute"><button id="btnUnmute">Bật âm thanh</button></div>
 </div>
 
-<!-- Media -->
 <video id="v" playsinline crossorigin="anonymous"
  src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></video>
 <audio id="bgm" loop crossorigin="anonymous"
@@ -103,8 +97,7 @@ const unmute = document.getElementById('unmute');
 const btnUnmute = document.getElementById('btnUnmute');
 
 /* ==== CONFIG ==== */
-const gradientChars = "  .`:,;clloooodddxxkkkOO00KKXXNNWW";
-let asciiRows = 0, COLORIZE_VIDEO = true;
+const gradientChars = "  .:,;clloooodddxxkkkOO00KKXXNNWW";let asciiRows = 0, COLORIZE_VIDEO = true;
 
 const FLAG_IMG_SRC = "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436052/hinh-nen-co-viet-nam-cho-may-tinh-1_hlcqkj.jpg";
 let flagImg = new Image(), flagReady = false;
@@ -188,7 +181,6 @@ function fitFontAndWrap(text, targetW, targetH){
   let fs = Math.max(14, Math.round(targetH * 0.42));
   let font = `900 ${fs}px "Times New Roman", serif`;
   let lines = wrapLinesByWidth(text, targetW*0.9, font);
-  // nếu >2 dòng hoặc tổng chiều cao quá lớn -> giảm font tiếp
   function totalH(fsize, lineCount){ return lineCount * fsize * 1.1; }
   while ((lines.length > 2 || totalH(fs, lines.length) > targetH*0.88) && fs > 10){
     fs -= 2;
@@ -245,20 +237,17 @@ function drawFlagAndTextASCII(text, t, duration, slideIndex){
     const totalW = widths[0] + vnW + (parts[1] ? widths[1] : 0);
     let cursor = -totalW/2;
 
-    // trái
     if(parts[0]){
       tctx.strokeText(parts[0], cursor + widths[0]/2, y);
       tctx.fillStyle = baseColor;
       tctx.fillText(parts[0], cursor + widths[0]/2, y);
       cursor += widths[0];
     }
-    // Việt Nam (đỏ)
     tctx.strokeText('Việt Nam', cursor + vnW/2, y);
     tctx.fillStyle = '#ff1a1a';
     tctx.fillText('Việt Nam', cursor + vnW/2, y);
     cursor += vnW;
 
-    // phải
     if(parts[1]){
       tctx.strokeText(parts[1], cursor + widths[1]/2, y);
       tctx.fillStyle = baseColor;
@@ -304,11 +293,9 @@ function playAsciiVideoThenSlides(){
   // thử phát video có âm thanh
   v.muted = false; v.volume = 1;
   v.play().then(()=>{
-    // OK, có tiếng
     unmute.style.display = 'none';
     startVideoLoop();
   }).catch(()=>{
-    // Trình duyệt chặn -> phát mute + hiện nút bật âm thanh
     v.muted = true;
     v.play().then(()=>{
       unmute.style.display = 'grid';
@@ -363,9 +350,14 @@ function startFlagSlides(){
 
   let idx = 0;
   const D = 2000;       // mỗi slide 2s
-  const GAP = 220;      // trễ giữa slide
+  const GAP = 0;      // *** THAY ĐỔI: Bỏ khoảng trống đen giữa các slide ***
   function playOne(){
-    if(idx >= asciiSlides.length){ return; }
+    if(idx >= asciiSlides.length){
+      // === NEW: ASCII IMAGE ALBUM ===
+      // *** THAY ĐỔI: Bỏ khoảng trống đen (gap) cho album ảnh ***
+      startAsciiImages(asciiImages, { duration: 2600, gap: 0, loop: true });
+      return;
+    }
     const text = asciiSlides[idx++];
     const t0 = performance.now();
     function loop(){
@@ -373,7 +365,6 @@ function startFlagSlides(){
       const p = Math.max(0, Math.min(1, t / D));
 
       // fade in/out qua opacity của #out
-      // 0→0.15: fade in, 0.85→1: fade out
       let op = 1;
       if(p < 0.15) op = p / 0.15;
       else if(p > 0.85) op = (1 - p) / 0.15;
@@ -430,9 +421,9 @@ function showSlides(slides, done){
     textSlide.style.display = 'flex';
     requestAnimationFrame(()=> textSlide.style.opacity = 1);
     setTimeout(()=>{
-      // fade out trước khi chuyển slide
       textSlide.style.opacity = 0;
-      setTimeout(showOne, 220);
+      // *** THAY ĐỔI: Gọi slide tiếp theo sớm hơn để tạo hiệu ứng mờ chồng liền mạch ***
+      setTimeout(showOne, 50);
     }, s.duration);
   };
   showOne();
@@ -444,6 +435,61 @@ function enterFullscreen(el){ const req = el.requestFullscreen||el.webkitRequest
 fsBtn.addEventListener('click', ()=> enterFullscreen(document.documentElement));
 document.addEventListener('fullscreenchange', ()=> fsBtn.style.display = isFullscreen()? 'none' : 'block');
 document.addEventListener('webkitfullscreenchange', ()=> fsBtn.style.display = isFullscreen()? 'none' : 'block');
+
+/* === NEW: ASCII IMAGE ALBUM === */
+const asciiImages = [
+  // Thêm/đổi link ảnh ở đây
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_1_l2j7vg.jpg",
+   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_2_rrqetv.jpg",
+     "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756625495/Ho_Hoan_Kiem_Hanoi_Vietnam__Stock_Photo_-_Image_of_flag_temple__5825156_ey7vcj.jpg",
+];
+
+function imgToAscii(img){
+  const W = getCols(), H = Math.round(W * 0.55);
+  tc.width = W; tc.height = H; tctx.clearRect(0,0,W,H);
+  const r = img.width / img.height || 1.6;
+  let dw = W, dh = W / r; if(dh < H){ dh = H; dw = dh * r; }
+  const dx = (W - dw)/2, dy = (H - dh)/2;
+  tctx.drawImage(img, dx, dy, dw, dh);
+
+  const data = tctx.getImageData(0,0,W,H).data, max = gradientChars.length - 1;
+  asciiRows = H; let html = "";
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const i = (y*W+x)*4, a = data[i+3];
+      if(a < 20){ html += " "; continue; }
+      const r = data[i], g = data[i+1], b = data[i+2];
+      const L = lum(r,g,b), idx = Math.max(0, Math.min(max, Math.round(L*max)));
+      html += `<span style="color:rgb(${r},${g},${b})">${gradientChars[idx]}</span>`;
+    }
+    html += "\n";
+  }
+  return html;
+}
+
+function startAsciiImages(links, {duration=2600, gap=280, loop=true} = {}){
+  let i = 0, stop = false;
+  (function next(){
+    if(stop || !links.length) return;
+    const src = links[i % links.length], img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const t0 = performance.now();
+      (function frame(){
+        const t = performance.now() - t0, p = Math.max(0, Math.min(1, t/duration));
+        let op = 1; if(p < .15) op = p/.15; else if(p > .85) op = (1-p)/.15;
+        out.style.opacity = op;
+        out.innerHTML = imgToAscii(img);
+        setAsciiSize();
+        if(t < duration) requestAnimationFrame(frame);
+        else { out.style.opacity = 0; i++; setTimeout(()=>{ next(); }, gap); }
+      })();
+    };
+    img.onerror = () => { i++; next(); };
+    img.src = src;
+  })();
+  return () => { stop = true; };
+}
 
 /* ===== START ===== */
 function startAll(){
