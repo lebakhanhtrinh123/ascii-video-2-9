@@ -14,10 +14,11 @@
       overflow:hidden;transition:background 300ms ease;
     }
 
-    /* STAGE: bọc toàn bộ nội dung để “giả landscape” khi dọc */
+    /* STAGE: bọc toàn bộ nội dung; dọc thì xoay 90deg để giả landscape */
     #stage{
       position:fixed;inset:0;display:block;
       transform-origin:center center;will-change:transform;
+      width:100%;height:100%;
     }
     .emu-lands{ transform:rotate(90deg) translateZ(0); }
 
@@ -91,12 +92,20 @@
       margin-top:10px;padding:8px 12px;border:0;border-radius:8px;cursor:pointer;background:#0072bc;color:#fff
     }
 
+    /* Nút fullscreen khi ngang */
+    #fsBtn{
+      position:fixed;right:10px;top:10px;z-index:35;
+      padding:8px 12px;border-radius:10px;border:none;cursor:pointer;
+      background:rgba(0,0,0,.55);color:#fff;font-weight:700;backdrop-filter:blur(4px);
+      display:none;
+    }
+
     video,canvas,audio{display:none}
   </style>
 </head>
 <body>
 
-  <!-- STAGE wrapper cho “giả landscape” -->
+  <!-- STAGE wrapper -->
   <div id="stage">
 
     <!-- Countdown -->
@@ -120,6 +129,9 @@
         <button id="btnHide">Đã hiểu</button>
       </div>
     </div>
+
+    <!-- Nút vào toàn màn hình khi ngang -->
+    <button id="fsBtn" type="button">Toàn màn hình</button>
 
   </div><!-- /stage -->
 
@@ -153,11 +165,40 @@ const slideOverlay = document.getElementById('slideOverlay');
 const slideText = document.getElementById('slideText');
 const hint = document.getElementById('hint');
 const btnHide = document.getElementById('btnHide');
+const fsBtn = document.getElementById('fsBtn');
 
 /* ==== CONFIG ==== */
 const gradientChars = "  .`:,;clloooodddxxkkkOO00KKXXNNWW";
 let COLORIZE_VIDEO = true;   // video phase: tô màu theo video (tự hạ cấu hình nếu lag)
 let asciiRows = 0;
+
+/* Helpers: fullscreen */
+function isFullscreen(){
+  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+}
+function enterFullscreen(el){
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  if(req) req.call(el);
+}
+function tryLockLandscape(){
+  if(screen.orientation && screen.orientation.lock){
+    screen.orientation.lock('landscape').catch(()=>{});
+  }
+}
+function updateFsBtn(){
+  if (window.innerWidth > window.innerHeight && !isFullscreen()){
+    fsBtn.style.display = 'block';
+  } else {
+    fsBtn.style.display = 'none';
+  }
+}
+fsBtn.addEventListener('click', ()=>{
+  enterFullscreen(stage);
+  tryLockLandscape();
+  setTimeout(updateFsBtn, 300);
+});
+document.addEventListener('fullscreenchange', updateFsBtn);
+document.addEventListener('webkitfullscreenchange', updateFsBtn);
 
 /* Responsive + emu landscape */
 function isPortrait(){ return window.innerHeight > window.innerWidth; }
@@ -168,8 +209,8 @@ function getCols(){
   if (w <= 640) return 120;
   if (w <= 820) return 150;
   if (w <= 1024) return 170;
-  if (w <= 1366) return 190;
-  return 220;
+  if (w <= 1366) return 200;    /* tăng nhẹ khi ngang to để mịn và vẫn cover */
+  return 230;
 }
 function charWidthFactor(){ return 0.55; }
 function lum(r,g,b){ return (0.299*r + 0.587*g + 0.114*b)/255; }
@@ -210,11 +251,7 @@ function toAsciiFrameGradient_Video(){
 }
 
 /* ====== TEXT → ASCII (nền xanh, chữ trắng; riêng “Việt Nam” màu đỏ ở slide 7) ====== */
-/* Vẽ chữ lên canvas với màu, KHÔNG vẽ nền → khi convert, chỉ tạo span màu cho pixel có alpha>0.
-   Như vậy nền xanh do CSS, còn ASCII chứa toàn dấu cách ở nền → rất rõ và nhẹ. */
-
 function drawTextColoredASCII(text, t, duration, slideIndex){
-  // Canvas size
   const cols = getCols();
   tc.width = cols;
   tc.height = Math.max(28, Math.round(cols * 0.30));
@@ -243,29 +280,23 @@ function drawTextColoredASCII(text, t, duration, slideIndex){
     lines = wrap(text);
   }
 
-  // Chỉ zoom in/out (sinus) – không sweep/glow
+  // Chỉ zoom in/out
   const p = Math.max(0, Math.min(1, t/duration));
-  const scale = 0.92 + 0.08*Math.sin(p*Math.PI); // in→out mượt
+  const scale = 0.92 + 0.08*Math.sin(p*Math.PI);
   tctx.save();
   tctx.translate(tc.width/2, tc.height/2);
   tctx.scale(scale, scale);
 
-  // Hàm vẽ 1 dòng với màu, có stroke mảnh để rõ viền
   function drawLine(line, y, baseColor, runs){
     tctx.lineWidth = Math.max(2, fs*0.08);
     tctx.strokeStyle = 'rgba(0,0,0,0.85)';
 
     if(runs && runs.length){
-      // Vẽ theo các “đoạn màu” (áp dụng cho slide 7)
-      let x = 0; // dùng đo kích thước để canh giữa
       const widths = runs.map(r => tctx.measureText(r.text).width);
-      const totalW = widths.reduce((a,b)=>a+b,0) + (runs.length-1)*tctx.measureText(' ').width*0.0;
+      const totalW = widths.reduce((a,b)=>a+b,0);
       let cursor = -totalW/2;
-
       runs.forEach((r,i)=>{
-        // stroke
         tctx.strokeText(r.text, cursor + widths[i]/2, y);
-        // fill
         tctx.fillStyle = r.color || baseColor;
         tctx.fillText(r.text, cursor + widths[i]/2, y);
         cursor += widths[i];
@@ -280,7 +311,6 @@ function drawTextColoredASCII(text, t, duration, slideIndex){
   const totalH = lines.length * fs * 1.1;
   let y = -totalH/2 + fs*0.5;
 
-  // Chuẩn bị “runs” màu cho slide 7 (index 6, vì bắt đầu từ 0)
   const isSpecial7 = (slideIndex === 6);
   const baseColor = '#ffffff';
   for(const line of lines){
@@ -299,7 +329,7 @@ function drawTextColoredASCII(text, t, duration, slideIndex){
 
   tctx.restore();
 
-  // Convert canvas → ASCII spans (chỉ tô màu cho pixel có alpha; nền => space)
+  // Canvas → ASCII spans
   const data = tctx.getImageData(0,0,tc.width,tc.height).data;
   asciiRows = tc.height;
   const maxIdx = gradientChars.length - 1;
@@ -322,7 +352,7 @@ function drawTextColoredASCII(text, t, duration, slideIndex){
   return html;
 }
 
-/* Fit + Cover theo kích thước ảo */
+/* Fit + Cover để luôn FULL màn hình (cả ngang & dọc) */
 function setAsciiSize(){
   if(asciiRows===0) return;
   const cols = getCols();
@@ -337,18 +367,19 @@ function setAsciiSize(){
   out.style.transform = `scale(${scale})`;
 }
 
-/* Emulate landscape khi dọc */
+/* Ngang: bỏ giả landscape, Dọc: bật xoay giả */
 function applyLandscapeEmulation(){
   if(!isPortrait()){
     stage.classList.remove('emu-lands');
     stage.style.transform = 'none';
-    return;
+  }else{
+    stage.classList.add('emu-lands');
+    const w0 = window.innerWidth, h0 = window.innerHeight;
+    const w = vw(), h = vh();
+    const scale = Math.max(w0 / h, h0 / w);
+    stage.style.transform = `rotate(90deg) scale(${scale})`;
   }
-  stage.classList.add('emu-lands');
-  const w0 = window.innerWidth, h0 = window.innerHeight;
-  const w = vw(), h = vh();
-  const scale = Math.max(w0 / h, h0 / w);
-  stage.style.transform = `rotate(90deg) scale(${scale})`;
+  updateFsBtn(); // cập nhật hiển thị nút fullscreen
 }
 
 /* Hint */
@@ -408,7 +439,7 @@ function playAsciiVideoThenText(){
   });
 }
 
-/* ========== ASCII TEXT SLIDES (NỀN XANH – CHỮ TRẮNG, slide 7 tô “Việt Nam” đỏ) ========== */
+/* ========== ASCII TEXT SLIDES (nền xanh – chữ trắng; slide 7 tô “Việt Nam” đỏ) ========== */
 const asciiSlides = [
   "Tự hào màu cờ sắc áo",
   "VietinBank đồng hành",
@@ -450,7 +481,6 @@ function startAsciiTextSlides(){
     const t0 = performance.now();
     function loop(){
       const t = performance.now() - t0;
-      // render chữ màu (trắng; riêng slide 7: “Việt Nam” đỏ)
       out.innerHTML = drawTextColoredASCII(text, t, D, idx-1);
       setAsciiSize();
       if(t < D){ requestAnimationFrame(loop); }
