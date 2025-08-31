@@ -108,13 +108,15 @@ flagImg.src = FLAG_IMG_SRC;
 /* Utils */
 function vw(){ return window.innerWidth }
 function vh(){ return window.innerHeight }
+
+// *** SỬA LỖI TRÊN ĐIỆN THOẠI (1): Giảm độ chi tiết của ASCII ***
 function getCols(){
   const w = vw();
-  if (w <= 640) return 120;
-  if (w <= 820) return 150;
-  if (w <= 1024) return 170;
-  if (w <= 1366) return 200;
-  return 230;
+  if (w <= 640) return 100; // Giảm từ 120
+  if (w <= 820) return 130; // Giảm từ 150
+  if (w <= 1024) return 150; // Giảm từ 170
+  if (w <= 1366) return 180; // Giảm từ 200
+  return 200; // Giảm từ 230
 }
 function lum(r,g,b){ return (0.299*r + 0.587*g + 0.114*b)/255; }
 
@@ -350,11 +352,11 @@ function startFlagSlides(){
 
   let idx = 0;
   const D = 2000;       // mỗi slide 2s
-  const GAP = 0;      // *** THAY ĐỔI: Bỏ khoảng trống đen giữa các slide ***
+  const GAP = 0;      // Xóa bỏ khoảng trễ để chuyển slide mượt hơn
   function playOne(){
     if(idx >= asciiSlides.length){
       // === NEW: ASCII IMAGE ALBUM ===
-      // *** THAY ĐỔI: Bỏ khoảng trống đen (gap) cho album ảnh ***
+      // Xóa bỏ khoảng trễ (gap) ở đây luôn
       startAsciiImages(asciiImages, { duration: 2600, gap: 0, loop: true });
       return;
     }
@@ -422,7 +424,7 @@ function showSlides(slides, done){
     requestAnimationFrame(()=> textSlide.style.opacity = 1);
     setTimeout(()=>{
       textSlide.style.opacity = 0;
-      // *** THAY ĐỔI: Gọi slide tiếp theo sớm hơn để tạo hiệu ứng mờ chồng liền mạch ***
+      // Bắt đầu slide tiếp theo sớm hơn để hiệu ứng liền mạch
       setTimeout(showOne, 50);
     }, s.duration);
   };
@@ -437,11 +439,12 @@ document.addEventListener('fullscreenchange', ()=> fsBtn.style.display = isFulls
 document.addEventListener('webkitfullscreenchange', ()=> fsBtn.style.display = isFullscreen()? 'none' : 'block');
 
 /* === NEW: ASCII IMAGE ALBUM === */
+// *** SỬA LỖI TRÊN ĐIỆN THOẠI (2): Giảm kích thước ảnh tải về ***
 const asciiImages = [
-  // Thêm/đổi link ảnh ở đây
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_1_l2j7vg.jpg",
-   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_2_rrqetv.jpg",
-     "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756625495/Ho_Hoan_Kiem_Hanoi_Vietnam__Stock_Photo_-_Image_of_flag_temple__5825156_ey7vcj.jpg",
+  // Các link ảnh đã được tối ưu hóa để giảm tải cho điện thoại
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_1_l2j7vg.jpg",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_2_rrqetv.jpg",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625495/Ho_Hoan_Kiem_Hanoi_Vietnam__Stock_Photo_-_Image_of_flag_temple__5825156_ey7vcj.jpg",
 ];
 
 function imgToAscii(img){
