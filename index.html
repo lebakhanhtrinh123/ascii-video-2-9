@@ -3,17 +3,26 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>VietinBank 2/9 ASCII Countdown</title>
+  <title>VietinBank 2/9 Countdown</title>
   <style>
     html,body{
       margin:0;height:100dvh;width:100vw;background:#000;display:grid;place-items:center;overflow:hidden;
-      font-family:ui-monospace,monospace;color:#fff;
+      color:#fff;
     }
     #stage{position:fixed;inset:0;width:100vw;height:100dvh}
 
-    /* ASCII area */
-    #asciiWrap{position:fixed;inset:0;display:none;place-items:center;z-index:10;overflow:hidden;background:#000}
-    #out{white-space:pre;margin:0;padding:0;font-weight:800;letter-spacing:-.02em;opacity:1;transition:opacity 280ms ease}
+    /* Video Player */
+    #v {
+      position: fixed;
+      top: 50%; left: 50%;
+      min-width: 100%; min-height: 100%;
+      width: auto; height: auto;
+      transform: translateX(-50%) translateY(-50%);
+      /* SỬA LỖI: Đổi từ cover sang contain để video không bị cắt */
+      object-fit: contain;
+      z-index: 10;
+      display: none;
+    }
 
     /* Countdown */
     #countdownWrap{position:fixed;inset:0;display:none;place-items:center;background:#000;z-index:30}
@@ -24,22 +33,35 @@
     }
     @keyframes pulse{0%{transform:scale(.6);filter:blur(6px);opacity:.5}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
 
-    /* Intro slides (ảnh nền) */
-    #textSlide{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;z-index:20;overflow:hidden}
-    #slideBg{position:absolute;inset:0;background-position:center;background-size:cover}
+    /* === HIỆU ỨNG SLIDE MỚI === */
+    #slideContainer{
+      position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;z-index:20;overflow:hidden;
+    }
+    .slide-bg {
+      position: absolute;
+      inset: 0;
+      background-position: center;
+      /* SỬA LỖI: Đổi từ cover sang contain để ảnh không bị cắt */
+      background-size: contain;
+      background-repeat: no-repeat;
+      opacity: 0;
+      transform: scale(1.1); /* Bắt đầu zoom vào */
+      transition: opacity 1.5s ease-in-out; /* Thời gian mờ chồng */
+    }
+    .slide-bg.visible {
+      opacity: 1;
+      transform: scale(1); /* Zoom ra nhẹ nhàng */
+    }
     #slideOverlay{position:absolute;inset:0;opacity:.6;mix-blend-mode:overlay}
     #slideText{
       position:relative;margin:0 4vw;font-family:"Times New Roman",serif;font-weight:900;
-      font-size:min(14vw,84px);letter-spacing:.04em;color:#fff;
-      animation:zoomIn 900ms cubic-bezier(.2,.75,.25,1) both
+      font-size:min(12vw,72px);letter-spacing:.04em;color:#fff;
+      text-shadow: 0 0 15px rgba(0,0,0,0.7);
+      transition: opacity 0.75s ease-in-out;
+      opacity: 0;
     }
-    @keyframes zoomIn{0%{transform:scale(.72);opacity:0}55%{transform:scale(1.06);opacity:1}100%{transform:scale(1)}}
 
-    /* Fullscreen + Unmute prompts */
-    #fsBtn{
-      position:fixed;right:10px;top:10px;z-index:40;display:none;
-      padding:8px 12px;border-radius:8px;border:none;background:rgba(0,0,0,.6);color:#fff;font-weight:700
-    }
+    /* Unmute prompt */
     #unmute{
       position:fixed;inset:0;display:none;place-items:center;z-index:50;background:rgba(0,0,0,.65)
     }
@@ -47,349 +69,66 @@
       font-weight:800;padding:10px 16px;border-radius:10px;border:none;background:#1e88e5;color:#fff
     }
 
-    video,canvas,audio{display:none}
+    audio{display:none}
   </style>
 </head>
 <body>
 <div id="stage">
   <div id="countdownWrap"><div id="countdown"></div></div>
 
-  <div id="textSlide">
-    <div id="slideBg"></div>
+  <video id="v" playsinline crossorigin="anonymous"
+   src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></video>
+
+  <div id="slideContainer">
+    <div class="slide-bg" id="slideBg1"></div>
+    <div class="slide-bg" id="slideBg2"></div>
     <div id="slideOverlay"></div>
     <h1 id="slideText"></h1>
   </div>
 
-  <div id="asciiWrap"><pre id="out"></pre></div>
-
-  <button id="fsBtn">Toàn màn hình</button>
-
   <div id="unmute"><button id="btnUnmute">Bật âm thanh</button></div>
 </div>
 
-<video id="v" playsinline crossorigin="anonymous"
- src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></video>
 <audio id="bgm" loop crossorigin="anonymous"
  src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756622154/M%C3%A1u_%C4%90%E1%BB%8F_Da_V%C3%A0ng_mp3cut.net_vhw8k0.mp3"></audio>
-
-<canvas id="c"></canvas>
-<canvas id="tc"></canvas>
 
 <script>
 /* ==== DOM ==== */
 const v = document.getElementById('v');
 const bgm = document.getElementById('bgm');
-const c = document.getElementById('c');
-const ctx = c.getContext('2d', { willReadFrequently: true });
-const tc = document.getElementById('tc');
-const tctx = tc.getContext('2d', { willReadFrequently: true });
-
-const asciiWrap = document.getElementById('asciiWrap');
-const out = document.getElementById('out');
 const countdownWrap = document.getElementById('countdownWrap');
 const countdown = document.getElementById('countdown');
-const textSlide = document.getElementById('textSlide');
-const slideBg = document.getElementById('slideBg');
+const slideContainer = document.getElementById('slideContainer');
+const slideBg1 = document.getElementById('slideBg1');
+const slideBg2 = document.getElementById('slideBg2');
 const slideOverlay = document.getElementById('slideOverlay');
 const slideText = document.getElementById('slideText');
-const fsBtn = document.getElementById('fsBtn');
 const unmute = document.getElementById('unmute');
 const btnUnmute = document.getElementById('btnUnmute');
 
-/* ==== CONFIG ==== */
-const gradientChars = "  .:,;clloooodddxxkkkOO00KKXXNNWW"; let asciiRows = 0, COLORIZE_VIDEO = true;
+/* ==== SLIDE DATA ==== */
+const FLAG_IMG_SRC = "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436056/hinh-nen-co-viet-nam-cho-may-tinh-1_wwoocv.jpg";
+const BG_BLUE="https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756709958/t%E1%BA%A3i_xu%E1%BB%91ng_7_ppqor8.jpg";
 
-const FLAG_IMG_SRC = "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436052/hinh-nen-co-viet-nam-cho-may-tinh-1_hlcqkj.jpg";
-let flagImg = new Image(), flagReady = false;
-flagImg.crossOrigin = "anonymous";
-flagImg.onload = ()=> flagReady = true;
-flagImg.src = FLAG_IMG_SRC;
+const introSlides = [
+    { text: "PHÒNG DỊCH VỤ KHÁCH HÀNG", bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
+    { text: "VIETINBANK",                 bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
+    { text: "CHI NHÁNH BẢO LỘC",          bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
+    { text: "CHÚC MỪNG",                  bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 2500 },
+    { text: "ĐẠI LỄ 2/9",                 bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 3000 },
+];
 
-/* Utils */
-function vw(){ return window.innerWidth }
-function vh(){ return window.innerHeight }
-function getCols(){
-  const w = vw();
-  if (w <= 640) return 100;
-  if (w <= 820) return 130;
-  if (w <= 1024) return 150;
-  if (w <= 1366) return 180;
-  return 200;
-}
-function lum(r,g,b){ return (0.299*r + 0.587*g + 0.114*b)/255; }
+const flagTextSlides = [
+    { text: "Tự hào màu cờ sắc áo", duration: 2500 },
+    { text: "VietinBank đồng hành cùng Tổ quốc vươn xa", duration: 3000 },
+    { text: "Giữ vững niềm tin, lan tỏa khát vọng", duration: 3000 },
+    { text: "Chung tay dựng xây đất nước phồn vinh", duration: 3000 },
+    { text: "Vì một Việt Nam ngày càng thịnh vượng", duration: 3000 },
+    { text: "Văn minh và tỏa sáng trên trường quốc tế", duration: 3500 },
+].map(slide => ({ ...slide, bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#fff" }));
 
-/* Fit + Contain để luôn vừa vặn trong màn hình */
-function setAsciiSize(){
-  if(asciiRows===0) return;
-  const cols = getCols();
-  const fsW = vw() / cols;
-  const fsH = vh() / asciiRows;
-  const baseFS = Math.min(fsW, fsH);
-  const baseW = cols * baseFS;
-  const baseH = asciiRows * baseFS;
-  // SỬA LỖI MÀN HÌNH DỌC: Đổi từ Math.max (cover) sang Math.min (contain)
-  // Giúp toàn bộ nội dung luôn nằm trong màn hình, không bị cắt xén.
-  const scale = Math.min(vw()/baseW, vh()/baseH);
-  out.style.fontSize = baseFS + "px";
-  out.style.lineHeight = baseFS + "px";
-  out.style.transform = `scale(${scale})`;
-}
-
-/* ===== VIDEO → ASCII ===== */
-function toAsciiFrameGradient_Video(){
-  if(!v.videoWidth) return "";
-  const cols = getCols();
-  const targetW = cols;
-  // SỬA LỖI MÀN HÌNH DỌC: Tự động điều chỉnh chiều cao cho phù hợp
-  const isPortrait = vh() > vw();
-  const aspectRatioMultiplier = isPortrait ? 1.0 : 0.55;
-  const targetH = Math.max(1, Math.round((v.videoHeight / v.videoWidth) * targetW * aspectRatioMultiplier));
-  
-  c.width = targetW; c.height = targetH;
-  ctx.drawImage(v, 0, 0, targetW, targetH);
-
-  const data = ctx.getImageData(0,0,targetW,targetH).data;
-  asciiRows = targetH;
-  const maxIdx = gradientChars.length - 1;
-  let html = "";
-
-  for(let y=0;y<targetH;y++){
-    for(let x=0;x<targetW;x++){
-      const i=(y*targetW+x)*4;
-      const r=data[i], g=data[i+1], b=data[i+2];
-      const L=lum(r,g,b);
-      const idx=Math.max(0, Math.min(maxIdx, Math.round(L*maxIdx)));
-      const ch=gradientChars[idx];
-      html += COLORIZE_VIDEO ? `<span style="color:rgb(${r},${g},${b})">${ch}</span>` : ch;
-    }
-    html += "\n";
-  }
-  return html;
-}
-
-/* ====== WRAP multi-line cho ASCII TEXT ====== */
-function wrapLinesByWidth(text, maxWidthPx, font){
-  tctx.font = font;
-  const words = text.split(/\s+/);
-  const lines = [];
-  let cur = "";
-  for(const w of words){
-    const test = cur ? cur + " " + w : w;
-    if(tctx.measureText(test).width <= maxWidthPx) cur = test;
-    else { if(cur) lines.push(cur); cur = w; }
-  }
-  if(cur) lines.push(cur);
-  return lines;
-}
-function fitFontAndWrap(text, targetW, targetH){
-  let fs = Math.max(14, Math.round(targetH * 0.42));
-  let font = `900 ${fs}px "Times New Roman", serif`;
-  let lines = wrapLinesByWidth(text, targetW*0.9, font);
-  function totalH(fsize, lineCount){ return lineCount * fsize * 1.1; }
-  while ((lines.length > 2 || totalH(fs, lines.length) > targetH*0.88) && fs > 10){
-    fs -= 2;
-    font = `900 ${fs}px "Times New Roman", serif`;
-    lines = wrapLinesByWidth(text, targetW*0.9, font);
-  }
-  return { fs, font, lines };
-}
-
-/* ====== SLIDE (Ảnh cờ + chữ) → ASCII (TỐI ƯU HÓA) ====== */
-function drawFlagAndTextASCII(text, slideIndex){
-  const cols = getCols();
-  
-  // SỬA LỖI MÀN HÌNH DỌC: Tự động điều chỉnh chiều cao cho phù hợp
-  const isPortrait = vh() > vw();
-  const ratio = isPortrait ? 0.8 : 0.3;
-  tc.height = Math.max(28, Math.round(cols * ratio));
-  const W = tc.width, H = tc.height;
-
-  tctx.clearRect(0,0,W,H);
-  if(flagReady){
-    let ratio = flagImg.width/flagImg.height || 1.6;
-    let dw = W, dh = W/ratio;
-    if(dh < H){ dh = H; dw = dh*ratio; }
-    const dx = (W - dw)/2, dy = (H - dh)/2;
-    tctx.drawImage(flagImg, dx, dy, dw, dh);
-  }
-  let {fs, font, lines} = fitFontAndWrap(text, W, H);
-  tctx.font = font; tctx.textAlign = 'center'; tctx.textBaseline = 'middle';
-  
-  tctx.save(); tctx.translate(W/2, H/2);
-
-  function drawRuns(line, y, baseColor){
-    tctx.lineWidth = Math.max(2, fs*0.08);
-    tctx.strokeStyle = 'rgba(0,0,0,0.85)';
-    const isSpecial7 = (slideIndex === 6) && line.includes('Việt Nam');
-    if(!isSpecial7){
-      tctx.strokeText(line, 0, y); tctx.fillStyle = baseColor; tctx.fillText(line, 0, y); return;
-    }
-    const parts = line.split('Việt Nam');
-    const widths = parts.map(p => tctx.measureText(p).width);
-    const vnW = tctx.measureText('Việt Nam').width;
-    const totalW = widths[0] + vnW + (parts[1] ? widths[1] : 0);
-    let cursor = -totalW/2;
-    if(parts[0]){ tctx.strokeText(parts[0], cursor + widths[0]/2, y); tctx.fillStyle = baseColor; tctx.fillText(parts[0], cursor + widths[0]/2, y); cursor += widths[0]; }
-    tctx.strokeText('Việt Nam', cursor + vnW/2, y); tctx.fillStyle = '#ff1a1a'; tctx.fillText('Việt Nam', cursor + vnW/2, y); cursor += vnW;
-    if(parts[1]){ tctx.strokeText(parts[1], cursor + widths[1]/2, y); tctx.fillStyle = baseColor; tctx.fillText(parts[1], cursor + widths[1]/2, y); }
-  }
-
-  const baseColor = '#ffffff';
-  const totalH = lines.length * fs * 1.1; let y0 = -totalH/2 + fs*0.5;
-  for(const line of lines){ drawRuns(line, y0, baseColor); y0 += fs*1.1; }
-  tctx.restore();
-
-  const data = tctx.getImageData(0,0,W,H).data;
-  asciiRows = H; let html = ""; const maxIdx = gradientChars.length - 1;
-  for(let yy=0; yy<H; yy++){
-    for(let xx=0; xx<W; xx++){
-      const i = (yy*W + xx)*4, a = data[i+3];
-      if(a < 20){ html += ' '; continue; }
-      const r=data[i], g=data[i+1], b=data[i+2];
-      const L = lum(r,g,b); const idx = Math.max(0, Math.min(maxIdx, Math.round(L*maxIdx)));
-      const ch = gradientChars[idx] || ' ';
-      html += `<span style="color:rgb(${r},${g},${b})">${ch}</span>`;
-    }
-    html += "\n";
-  }
-  return html;
-}
-
-/* ===== FLOW: VIDEO → SLIDES ===== */
-function playAsciiVideoThenSlides(){
-  asciiWrap.style.display = "grid";
-  setAsciiSize();
-  v.muted = false; v.volume = 1;
-  v.play().then(()=>{
-    unmute.style.display = 'none';
-    startVideoLoop();
-  }).catch(()=>{
-    v.muted = true;
-    v.play().then(()=>{
-      unmute.style.display = 'grid';
-      startVideoLoop();
-    }).catch(err=>console.error("Không thể phát video:", err));
-  });
-
-  btnUnmute.onclick = ()=>{
-    v.muted = false;
-    v.play().catch(()=>{});
-    bgm.play().catch(()=>{});
-    unmute.style.display = 'none';
-  };
-
-  function startVideoLoop(){
-    let done = false;
-    let frameCounter = 0;
-    function loop(){
-      if(v.ended || v.paused){
-        if(!done){ done = true; startFlagSlides(); }
-        return;
-      }
-      if (frameCounter % 2 === 0) {
-        out.innerHTML = toAsciiFrameGradient_Video();
-        setAsciiSize();
-      }
-      frameCounter++;
-      requestAnimationFrame(loop);
-    }
-    requestAnimationFrame(loop);
-  }
-}
-
-/* ===== SLIDES LIST ===== */
-const asciiSlides = ["Tự hào màu cờ sắc áo", "VietinBank đồng hành", "cùng Tổ quốc vươn xa –", "giữ vững niềm tin, ", "lan tỏa khát vọng, ", "chung tay dựng xây đất nước ", "phồn vinh, vì một Việt Nam", "ngày càng thịnh vượng, ", "văn minh và tỏa sáng trên", "trường quốc tế."];
-
-/* ===== ASCII SLIDES (TỐI ƯU HÓA) ===== */
-function startFlagSlides(){
-  c.width = 1; c.height = 1;
-  bgm.volume = 1;
-  bgm.play().catch(()=>{});
-
-  let idx = 0;
-  const D = 2000;
-  const GAP = 0;
-  function playOne(){
-    if(idx >= asciiSlides.length){
-      startAsciiImages(asciiImages, { duration: 2600, gap: 0, loop: true });
-      return;
-    }
-    const text = asciiSlides[idx++];
-    
-    out.innerHTML = drawFlagAndTextASCII(text, idx-1);
-    setAsciiSize();
-
-    const t0 = performance.now();
-    function loop(){
-      const t = performance.now() - t0;
-      const p = Math.max(0, Math.min(1, t / D));
-      let op = 1; if(p < 0.15) op = p/0.15; else if(p > 0.85) op = (1-p)/0.15;
-      out.style.opacity = Math.max(0, Math.min(1, op));
-      
-      if(t < D){ requestAnimationFrame(loop); }
-      else { out.style.opacity = 0; setTimeout(playOne, GAP); }
-    }
-    out.style.opacity = 0;
-    requestAnimationFrame(loop);
-  }
-  playOne();
-}
-
-/* ===== COUNTDOWN & INTRO SLIDES ===== */
-function runCountdown(next){
-  const steps=["3","2","1"]; let i=0;
-  countdownWrap.style.display='grid';
-  const tick=()=>{
-    if(i<steps.length){
-      countdown.textContent=steps[i++];
-      countdown.style.animation='none'; void countdown.offsetWidth;
-      countdown.style.animation='pulse 1.1s ease both';
-      setTimeout(tick, 1100);
-    }else{
-      countdownWrap.style.display='none';
-      next && next();
-    }
-  }; tick();
-}
-const BG_BLUE="https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436137/3654dadd-589c-49de-8241-1748d8ef4a69_yx4mjg.webp";
-const BG_FLAG="https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436056/hinh-nen-co-viet-nam-cho-may-tinh-1_wwoocv.jpg";
-function showSlides(slides, done){
-  let idx=0;
-  textSlide.style.opacity = 0;
-  textSlide.style.transition = 'opacity 350ms ease';
-  const showOne=()=>{
-    if(idx>=slides.length){
-      textSlide.style.display='none';
-      done && done();
-      return;
-    }
-    const s = slides[idx++];
-    slideBg.style.backgroundImage = `url('${s.bgImage}')`;
-    slideOverlay.style.background = s.overlay;
-    slideText.textContent = s.text;
-    slideText.style.color = s.color;
-
-    textSlide.style.display = 'flex';
-    requestAnimationFrame(()=> textSlide.style.opacity = 1);
-    setTimeout(()=>{
-      textSlide.style.opacity = 0;
-      setTimeout(showOne, 50);
-    }, s.duration);
-  };
-  showOne();
-}
-
-/* FULLSCREEN */
-function isFullscreen(){ return !!(document.fullscreenElement||document.webkitFullscreenElement||document.msFullscreenElement); }
-function enterFullscreen(el){ const req = el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen; if(req) req.call(el); }
-fsBtn.addEventListener('click', ()=> enterFullscreen(document.documentElement));
-document.addEventListener('fullscreenchange', ()=> fsBtn.style.display = isFullscreen()? 'none' : 'block');
-document.addEventListener('webkitfullscreenchange', ()=> fsBtn.style.display = isFullscreen()? 'none' : 'block');
-
-/* === ASCII IMAGE ALBUM === */
-const asciiImages = [
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_1_l2j7vg.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_2_rrqetv.jpg",
+const imageAlbumSlides = [
+ "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_2_rrqetv.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625495/Ho_Hoan_Kiem_Hanoi_Vietnam__Stock_Photo_-_Image_of_flag_temple__5825156_ey7vcj.jpg",
 
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697607/duan-vietinbank-bao-loc-11-1606889297688_hgc9hr.jpg",
@@ -413,80 +152,115 @@ const asciiImages = [
     "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697579/7dd2a94c-198e-4c37-b163-dbfee9ef2055_gygsnp.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697579/3b715f9b-8ec4-4b30-ad82-8824bcda0295_k5xjjk.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756625496/POSTER_K%E1%BB%B6_NI%E1%BB%86M_CHI%E1%BA%BEN_TH%E1%BA%AENG_%C4%90I%E1%BB%86N_BI%C3%8AN_PH%E1%BB%A6___2024_-_Duy%C3%AAn_V%C5%A9_k9tbjn.jpg",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_1024/v1756625496/POSTER_K%E1%BB%B6_NI%E1%BB%86M_CHI%E1%BA%BEN_TH%E1%BA%AENG_%C4%90I%E1%BB%86N_BI%C3%8AN_PH%E1%BB%A6___2024_-_Duy%C3%AAn_V%C5%A9_k9tbjn.jpg",
+].map(imgSrc => ({ text: "", bgImage: imgSrc, overlay: "linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1))", duration: 3500, color: "#fff" }));
 
+/* ===== CORE FUNCTIONS ===== */
 
-    "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756698715/Vietnam_Flag_Waving_in_Wind__Concept_of_Independence_Day_September_2_Vietnam_Celebration_yphmiz.jpg",
-
-];
-function imgToAscii(img){
-  const W = getCols();
-  // SỬA LỖI MÀN HÌNH DỌC: Tự động điều chỉnh chiều cao cho phù hợp
-  const isPortrait = vh() > vw();
-  const ratio = isPortrait ? 1.0 : 0.55;
-  const H = Math.round(W * ratio);
-  
-  tc.width = W; tc.height = H; tctx.clearRect(0,0,W,H);
-  const r = img.width / img.height || 1.6;
-  let dw = W, dh = W / r; if(dh < H){ dh = H; dw = dh * r; }
-  const dx = (W - dw)/2, dy = (H - dh)/2;
-  tctx.drawImage(img, dx, dy, dw, dh);
-  const data = tctx.getImageData(0,0,W,H).data, max = gradientChars.length - 1;
-  asciiRows = H; let html = "";
-  for(let y=0;y<H;y++){
-    for(let x=0;x<W;x++){
-      const i = (y*W+x)*4, a = data[i+3];
-      if(a < 20){ html += " "; continue; }
-      const r = data[i], g = data[i+1], b = data[i+2];
-      const L = lum(r,g,b), idx = Math.max(0, Math.min(max, Math.round(L*max)));
-      html += `<span style="color:rgb(${r},${g},${b})">${gradientChars[idx]}</span>`;
+// Countdown: 3, 2, 1...
+function runCountdown(next) {
+  const steps=["3","2","1"]; let i=0;
+  countdownWrap.style.display='grid';
+  const tick=()=>{
+    if(i<steps.length){
+      countdown.textContent=steps[i++];
+      countdown.style.animation='none'; void countdown.offsetWidth;
+      countdown.style.animation='pulse 1.1s ease both';
+      setTimeout(tick, 1100);
+    } else {
+      countdownWrap.style.display='none';
+      next && next();
     }
-    html += "\n";
-  }
-  return html;
+  }; tick();
 }
-function startAsciiImages(links, {duration=2600, gap=0, loop=true} = {}){
-  let i = 0, stop = false;
-  (function next(){
-    if (stop) return;
-    if (!links || links.length === 0) return;
-    const src = links[i % links.length], img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const t0 = performance.now();
-      (function frame(){
-        const t = performance.now() - t0, p = Math.max(0, Math.min(1, t/duration));
-        let op = 1; if(p < .15) op = p/.15; else if(p > .85) op = (1-p)/.15;
-        out.style.opacity = op;
-        out.innerHTML = imgToAscii(img);
-        setAsciiSize();
-        if(t < duration) requestAnimationFrame(frame);
-        else { out.style.opacity = 0; i++; setTimeout(()=>{ next(); }, gap); }
-      })();
-    };
-    img.onerror = () => { i++; next(); };
-    img.src = src;
-  })();
-  return () => { stop = true; };
+
+// === HIỆU ỨNG SLIDE MỚI: Cross-fade + Ken Burns ===
+let isBg1Active = true;
+function playSlides(slides, onDone) {
+  let idx = 0;
+  slideContainer.style.display = 'flex';
+
+  function showOne() {
+    if (idx >= slides.length) {
+        const activeBg = isBg1Active ? slideBg1 : slideBg2;
+        activeBg.classList.remove('visible');
+        slideText.style.opacity = 0;
+        setTimeout(() => {
+            slideContainer.style.display = 'none';
+            onDone && onDone();
+        }, 1500);
+      return;
+    }
+    
+    const s = slides[idx++];
+    
+    const activeBg = isBg1Active ? slideBg1 : slideBg2;
+    const inactiveBg = isBg1Active ? slideBg2 : slideBg1;
+
+    // 1. Chuẩn bị slide tiếp theo trên background đang ẩn
+    inactiveBg.style.backgroundImage = `url('${s.bgImage}')`;
+    
+    // 2. Cập nhật chữ và overlay (cho chữ mờ đi rồi hiện ra)
+    slideText.style.opacity = 0;
+    setTimeout(() => {
+        slideOverlay.style.background = s.overlay;
+        slideText.textContent = s.text;
+        slideText.style.color = s.color;
+        slideText.style.opacity = 1;
+    }, 750); // Hiện chữ ra ở giữa hiệu ứng chuyển cảnh
+
+    // 3. Đặt thời gian cho hiệu ứng zoom (Ken Burns)
+    const zoomDuration = s.duration / 1000;
+    activeBg.style.transition = `opacity 1.5s ease-in-out, transform ${zoomDuration}s ease-out`;
+    inactiveBg.style.transition = `opacity 1.5s ease-in-out, transform ${zoomDuration}s ease-out`;
+    
+    // 4. Bắt đầu chuyển cảnh: mờ chồng và zoom
+    activeBg.classList.remove('visible');
+    inactiveBg.classList.add('visible');
+
+    // 5. Đảo vai trò của 2 background cho lần kế tiếp
+    isBg1Active = !isBg1Active;
+    
+    // 6. Lên lịch cho slide tiếp theo
+    setTimeout(showOne, s.duration);
+  }
+  showOne();
+}
+
+
+// Video player
+function playMainVideo() {
+  v.style.display = 'block';
+  bgm.volume = 1;
+
+  const playAll = () => {
+    unmute.style.display = 'none';
+    const bgmPromise = bgm.play();
+    const vPromise = v.play();
+    if(bgmPromise !== undefined) bgmPromise.catch(e => {});
+    if(vPromise !== undefined) vPromise.catch(e => {});
+  };
+
+  v.play().then(() => {
+    bgm.play().catch(()=>{});
+  }).catch(() => {
+    unmute.style.display = 'grid';
+    btnUnmute.onclick = playAll;
+  });
+
+  v.addEventListener('ended', () => {
+    v.style.display = 'none';
+    playSlides(flagTextSlides, () => playSlides(imageAlbumSlides, null));
+  }, { once: true });
 }
 
 /* ===== START ===== */
-function startAll(){
-  fsBtn.style.display = 'block';
-  const slides = [
-    { text: "PHÒNG DỊCH VỤ KHÁCH HÀNG", bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 1800 },
-    { text: "VIETINBANK",                 bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 1600 },
-    { text: "CHI NHÁNH BẢO LỘC",          bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2000 },
-    { text: "CHÚC MỪNG",                  bgImage: BG_FLAG, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 1600 },
-    { text: "ĐẠI LỄ 2/9",                 bgImage: BG_FLAG, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 2200 },
-  ];
-  runCountdown(()=> showSlides(slides, ()=> {
-    asciiWrap.style.display='grid';
-    playAsciiVideoThenSlides();
-  }));
+function startAll() {
+  runCountdown(() => {
+    playSlides(introSlides, playMainVideo);
+  });
 }
 
-window.addEventListener('resize', setAsciiSize);
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setAsciiSize(); });
 window.addEventListener('load', startAll);
 </script>
 </body>
