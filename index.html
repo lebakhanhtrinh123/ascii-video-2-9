@@ -17,7 +17,7 @@
       object-fit:contain;
     }
 
-    /* Video cuối (không dùng nữa nhưng giữ lại CSS để không lỗi) */
+    /* Video cuối (hiển thị bình thường) */
     #v2{
       position:fixed;inset:0;margin:auto;object-fit:contain;z-index:25;display:none;
       max-width:100vw;max-height:100dvh;background:#000;
@@ -99,23 +99,29 @@
   <div id="countdownWrap"><div id="countdown"></div></div>
   <img id="flagWave" alt="VN flag"/>
 
+  <!-- video đầu (lấy frame cho ASCII) — luôn muted -->
   <video id="v"
     playsinline webkit-playsinline preload="auto" muted
     crossorigin="anonymous"
     disablePictureInPicture controlslist="nodownload noplaybackrate noremoteplayback"
     src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></video>
 
+  <!-- ÂM THANH của video đầu (tách riêng) -->
   <audio id="vAudio" crossorigin="anonymous"
     src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></audio>
 
+  <!-- ASCII output -->
   <div id="asciiWrap"><pre id="out"></pre></div>
 
+  <!-- video cuối -->
   <video id="v2" playsinline webkit-playsinline controls crossorigin="anonymous"
     disablePictureInPicture controlslist="nodownload noplaybackrate noremoteplayback"
-    src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756715249/728236821766741745_qxhjll.mp4"></video>
+    src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756715249/7282368217667417445_qxhjll.mp4"></video>
 
+  <!-- pháo hoa -->
   <canvas id="fx"></canvas>
 
+  <!-- Slides -->
   <div id="slideContainer">
     <div class="slide-bg" id="slideBg1"></div>
     <div class="slide-bg" id="slideBg2"></div>
@@ -123,6 +129,7 @@
     <h1 id="slideText"></h1>
   </div>
 
+  <!-- Cửa chờ trước khi vào video ASCII -->
   <div id="preVideo">
     <div class="pv-card">
       <h2>Chúng ta sẽ nghe lại<br/>Tuyên ngôn Độc lập của Bác</h2>
@@ -131,9 +138,11 @@
     </div>
   </div>
 
+  <!-- fallback unmute khi play bị chặn -->
   <div id="unmute"><button id="btnUnmute">Bật âm thanh</button></div>
 </div>
 
+<!-- Nhạc nền cho slide -->
 <audio id="bgm" loop crossorigin="anonymous"
   src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756622154/M%C3%A1u_%C4%90%E1%BB%8F_Da_V%C3%A0ng_mp3cut.net_vhw8k0.mp3"></audio>
 
@@ -166,10 +175,10 @@ const BG_BLUE="https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756710926/vie
 
 const introSlides = [
   { text: "PHÒNG DỊCH VỤ KHÁCH HÀNG", bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
-  { text: "VIETINBANK",                  bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
-  { text: "CHI NHÁNH BẢO LỘC",         bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
-  { text: "CHÚC MỪNG",                 bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 2500 },
-  { text: "ĐẠI LỄ 2/9",                  bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 3000 },
+  { text: "VIETINBANK",                 bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
+  { text: "CHI NHÁNH BẢO LỘC",          bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
+  { text: "CHÚC MỪNG",                  bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 2500 },
+  { text: "ĐẠI LỄ 2/9",                 bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 3000 },
 ];
 
 const flagTextSlides = [
@@ -459,15 +468,11 @@ function startAsciiVideo(){
     asciiWrap.style.display = 'none';
     try { vAudio.pause(); vAudio.currentTime = 0; } catch(e){}
     if (soundEnabled) { try { bgm.currentTime = 0; bgm.play(); } catch(e) {} }
-    
-    // --- FIX HERE ---
-    // Sau khi chiếu xong album ảnh thì không làm gì nữa (null)
-    playSlides(flagTextSlides, () => playSlides(imageAlbumSlides, null));
-
+    playSlides(flagTextSlides, () => playSlides(imageAlbumSlides, playFinalVideo));
   }, { once: true });
 }
 
-/* Video cuối + đại tiệc pháo hoa (KHÔNG DÙNG NỮA) */
+/* Video cuối + đại tiệc pháo hoa */
 function playFinalVideo(){
   if (bgm) { bgm.pause(); bgm.currentTime = 0; }
   v2.style.display='block';
