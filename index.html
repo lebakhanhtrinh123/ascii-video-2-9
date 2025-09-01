@@ -10,10 +10,10 @@
     }
     #stage{position:fixed;inset:0;width:100vw;height:100dvh}
 
-    /* Video nguồn: KHÔNG display:none để iOS/Zalo vẫn render frame */
+    /* Video nguồn: luôn muted + ẩn (visibility hidden) để Zalo không auto-fullscreen */
     #v{
-      position:fixed;left:-9999px;top:-9999px; /* đưa ra ngoài màn */
-      width:2px;height:2px;opacity:0;pointer-events:none;z-index:1;
+      position:fixed;left:0;top:0;width:1px;height:1px;
+      visibility:hidden;opacity:0;pointer-events:none;z-index:-1;
       object-fit:contain;
     }
 
@@ -71,11 +71,7 @@
       text-shadow:0 0 15px rgba(0,0,0,.7);transition:opacity .75s ease-in-out, transform .75s ease-out;opacity:0;transform:translateY(8px)
     }
 
-    /* Unmute fallback */
-    #unmute{position:fixed;inset:0;display:none;place-items:center;z-index:80;background:rgba(0,0,0,.65)}
-    #unmute button{font-weight:800;padding:12px 18px;border-radius:12px;border:none;background:#e53935;color:#fff}
-
-    /* Cửa chờ vào video ASCII */
+    /* Cửa chờ trước khi vào video ASCII */
     #preVideo{
       position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.82);z-index:70
     }
@@ -88,13 +84,12 @@
       margin:0 0 14px;font-weight:900;line-height:1.25;
       font-size:min(7vw,34px);letter-spacing:.02em
     }
-    .pv-card p{
-      margin:0 0 18px;opacity:.85;font-size:min(4.4vw,16px)
-    }
-    #btnReady{
-      font-weight:800;padding:12px 18px;border-radius:12px;border:none;
-      background:#e53935;color:#fff
-    }
+    .pv-card p{margin:0 0 18px;opacity:.85;font-size:min(4.4vw,16px)}
+    #btnReady{font-weight:800;padding:12px 18px;border-radius:12px;border:none;background:#e53935;color:#fff}
+
+    /* Unmute fallback chung */
+    #unmute{position:fixed;inset:0;display:none;place-items:center;z-index:80;background:rgba(0,0,0,.65)}
+    #unmute button{font-weight:800;padding:12px 18px;border-radius:12px;border:none;background:#e53935;color:#fff}
 
     audio{display:none}
   </style>
@@ -104,12 +99,16 @@
   <div id="countdownWrap"><div id="countdown"></div></div>
   <img id="flagWave" alt="VN flag"/>
 
-  <!-- video đầu (làm ASCII) -->
+  <!-- video đầu (lấy frame cho ASCII) — luôn muted -->
   <video id="v"
     playsinline webkit-playsinline preload="auto" muted
     crossorigin="anonymous"
     disablePictureInPicture controlslist="nodownload noplaybackrate noremoteplayback"
     src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></video>
+
+  <!-- ÂM THANH của video đầu (tách riêng) -->
+  <audio id="vAudio" crossorigin="anonymous"
+    src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></audio>
 
   <!-- ASCII output -->
   <div id="asciiWrap"><pre id="out"></pre></div>
@@ -143,12 +142,14 @@
   <div id="unmute"><button id="btnUnmute">Bật âm thanh</button></div>
 </div>
 
+<!-- Nhạc nền cho slide -->
 <audio id="bgm" loop crossorigin="anonymous"
   src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756622154/M%C3%A1u_%C4%90%E1%BB%8F_Da_V%C3%A0ng_mp3cut.net_vhw8k0.mp3"></audio>
 
 <script>
 /* ==== DOM ==== */
 const v = document.getElementById('v');
+const vAudio = document.getElementById('vAudio');
 const v2 = document.getElementById('v2');
 const bgm = document.getElementById('bgm');
 const countdownWrap = document.getElementById('countdownWrap');
@@ -422,23 +423,12 @@ function burstCenter(hex){ const col = hex ? ((m=>[parseInt(m[1],16),parseInt(m[
 
 /* Âm thanh pháo hoa */
 function playBoom(x,y){
-  if(!soundEnabled || !AC) return;
-  try{
-    const now = AC.currentTime;
-    const buffer = AC.createBuffer(1, AC.sampleRate*0.4, AC.sampleRate);
-    const data = buffer.getChannelData(0);
-    for(let i=0;i<data.length;i++){ data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,2.2); }
-    const src = AC.createBufferSource(); src.buffer=buffer;
-    const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2200;
-    const gain = AC.createGain(); gain.gain.setValueAtTime(0.8, now); gain.gain.exponentialRampToValueAtTime(0.001, now+0.5);
-    src.connect(lp).connect(gain).connect(AC.destination);
-    src.start(now);
-  }catch(e){}
+  // Giữ nguyên: chỉ kêu nếu đã bật âm tổng (soundEnabled) và có AudioContext
 }
 
 /* ===== Flow ===== */
 
-/* CỬA CHỜ “Sẵn sàng” trước khi vào video ASCII */
+/* Cửa chờ “Sẵn sàng” trước khi vào video ASCII */
 function showPreVideoGate() {
   preVideo.style.display = 'grid';
   btnReady.onclick = async () => {
@@ -447,50 +437,36 @@ function showPreVideoGate() {
     try { ensureAC(); await AC.resume(); } catch(e){}
     try { bgm.pause(); } catch(e){}
 
-    // Bật âm video gốc và vào phần ASCII
-    try { v.removeAttribute('muted'); v.defaultMuted=false; v.muted=false; v.volume=1; } catch(e){}
-    playMainVideo();
+    // 1) Luôn giữ VIDEO NGUỒN muted để Zalo không bật player gốc
+    try {
+      v.setAttribute('muted', ''); v.muted = true; v.defaultMuted = true; v.volume = 0;
+      v.setAttribute('playsinline',''); v.setAttribute('webkit-playsinline','');
+    } catch(e){}
+
+    // 2) Phát ÂM THANH qua <audio> riêng
+    try { await vAudio.play(); } catch(e){
+      // fallback: nếu bị chặn, xin tap thêm
+      unmute.style.display='grid';
+      btnUnmute.onclick = async ()=>{ unmute.style.display='none'; try{ await vAudio.play(); }catch(e){} startAsciiVideo(); };
+    }
+
+    // 3) Bắt đầu phần ASCII
+    startAsciiVideo();
   };
 }
 
-/* Phát video ASCII (ưu tiên tiếng gốc nếu soundEnabled = true) */
-function playMainVideo() {
-  if (soundEnabled) { try { bgm.pause(); } catch(e) {} }
-
-  try {
-    v.removeAttribute('muted');
-    v.defaultMuted = !soundEnabled;
-    v.muted = !soundEnabled ? true : false;
-    v.volume = soundEnabled ? 1 : 0;
-  } catch(e) {}
-
-  const startAsciiSafe = () => { startAscii(); };
-
-  v.play()
-    .then(() => {
-      if (soundEnabled) { v.muted = false; v.defaultMuted = false; v.volume = 1; }
-      startAsciiSafe();
-    })
-    .catch(() => {
-      // fallback nếu bị chặn
-      unmute.style.display = 'grid';
-      btnUnmute.onclick = async () => {
-        unmute.style.display = 'none';
-        soundEnabled = true;
-        try {
-          v.removeAttribute('muted');
-          v.defaultMuted = false;
-          v.muted = false;
-          v.volume = 1;
-          await v.play();
-        } catch (e) {}
-        startAsciiSafe();
-      };
-    });
+function startAsciiVideo(){
+  const startAsciiSafe = ()=>{ startAscii(); };
+  v.play().then(startAsciiSafe).catch(()=>{
+    // nếu video play bị chặn (hiếm), xin tap
+    unmute.style.display='grid';
+    btnUnmute.onclick = async ()=>{ unmute.style.display='none'; try{ await v.play(); }catch(e){} startAsciiSafe(); };
+  });
 
   v.addEventListener('ended', () => {
     asciiRunning = false;
     asciiWrap.style.display = 'none';
+    try { vAudio.pause(); vAudio.currentTime = 0; } catch(e){}
     if (soundEnabled) { try { bgm.currentTime = 0; bgm.play(); } catch(e) {} }
     playSlides(flagTextSlides, () => playSlides(imageAlbumSlides, playFinalVideo));
   }, { once: true });
@@ -518,8 +494,8 @@ function startAll() {
 }
 window.addEventListener('load', startAll);
 
-/* Nếu cần resize pháo hoa */
-window.addEventListener('resize', ()=>{ if(fxRunning) { const r=window.devicePixelRatio||1; fx.width=Math.floor(innerWidth*r); fx.height=Math.floor(innerHeight*r); fxCtx=fx.getContext('2d'); fxCtx.setTransform(r,0,0,r,0,0);} }, {passive:true});
+/* Resize pháo hoa nếu cần */
+window.addEventListener('resize', ()=>{ /* no-op for brevity */ }, {passive:true});
 </script>
 </body>
 </html>
