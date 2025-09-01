@@ -71,9 +71,30 @@
       text-shadow:0 0 15px rgba(0,0,0,.7);transition:opacity .75s ease-in-out, transform .75s ease-out;opacity:0;transform:translateY(8px)
     }
 
-    /* Unmute prompt */
-    #unmute{position:fixed;inset:0;display:grid;place-items:center;z-index:80;background:rgba(0,0,0,.65)}
+    /* Unmute fallback */
+    #unmute{position:fixed;inset:0;display:none;place-items:center;z-index:80;background:rgba(0,0,0,.65)}
     #unmute button{font-weight:800;padding:12px 18px;border-radius:12px;border:none;background:#e53935;color:#fff}
+
+    /* Cửa chờ vào video ASCII */
+    #preVideo{
+      position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.82);z-index:70
+    }
+    .pv-card{
+      width:min(92vw,720px);text-align:center;padding:20px 18px;border-radius:14px;
+      background:linear-gradient(180deg,#1b1b1b,#101010);
+      box-shadow:0 8px 40px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.06)
+    }
+    .pv-card h2{
+      margin:0 0 14px;font-weight:900;line-height:1.25;
+      font-size:min(7vw,34px);letter-spacing:.02em
+    }
+    .pv-card p{
+      margin:0 0 18px;opacity:.85;font-size:min(4.4vw,16px)
+    }
+    #btnReady{
+      font-weight:800;padding:12px 18px;border-radius:12px;border:none;
+      background:#e53935;color:#fff
+    }
 
     audio{display:none}
   </style>
@@ -101,6 +122,7 @@
   <!-- pháo hoa -->
   <canvas id="fx"></canvas>
 
+  <!-- Slides -->
   <div id="slideContainer">
     <div class="slide-bg" id="slideBg1"></div>
     <div class="slide-bg" id="slideBg2"></div>
@@ -108,7 +130,17 @@
     <h1 id="slideText"></h1>
   </div>
 
-  <div id="unmute"><button id="btnUnmute">Bắt đầu • Bật âm thanh</button></div>
+  <!-- Cửa chờ trước khi vào video ASCII -->
+  <div id="preVideo">
+    <div class="pv-card">
+      <h2>Chúng ta sẽ nghe lại<br/>Tuyên ngôn Độc lập của Bác</h2>
+      <p>Nhấn “Sẵn sàng” để bật âm thanh và bắt đầu.</p>
+      <button id="btnReady">Sẵn sàng</button>
+    </div>
+  </div>
+
+  <!-- fallback unmute khi play bị chặn -->
+  <div id="unmute"><button id="btnUnmute">Bật âm thanh</button></div>
 </div>
 
 <audio id="bgm" loop crossorigin="anonymous"
@@ -126,6 +158,8 @@ const slideBg1 = document.getElementById('slideBg1');
 const slideBg2 = document.getElementById('slideBg2');
 const slideOverlay = document.getElementById('slideOverlay');
 const slideText = document.getElementById('slideText');
+const preVideo = document.getElementById('preVideo');
+const btnReady = document.getElementById('btnReady');
 const unmute = document.getElementById('unmute');
 const btnUnmute = document.getElementById('btnUnmute');
 const asciiWrap = document.getElementById('asciiWrap');
@@ -215,7 +249,7 @@ function runCountdown(next) {
   const steps=["3","2","1"]; let i=0;
   countdownWrap.style.display='grid';
   flagWave.style.display='block';
-  startFireworks({intensity:0.55, palette:["#DA251D","#FFDE00"]}); // visual; có tiếng nếu đã bật âm
+  startFireworks({intensity:0.55, palette:["#DA251D","#FFDE00"]}); // visual
 
   const tick=()=>{
     if(i<steps.length){
@@ -404,36 +438,45 @@ function playBoom(x,y){
 
 /* ===== Flow ===== */
 
-/* THAY THẾ TOÀN BỘ HÀM NÀY */
-function playMainVideo() {
-  // Nếu người dùng đã bấm bật âm → ưu tiên tiếng từ video gốc, tắt BGM trong lúc chạy ASCII
-  if (soundEnabled) {
-    try { bgm.pause(); } catch(e) {}
-  }
+/* CỬA CHỜ “Sẵn sàng” trước khi vào video ASCII */
+function showPreVideoGate() {
+  preVideo.style.display = 'grid';
+  btnReady.onclick = async () => {
+    preVideo.style.display = 'none';
+    soundEnabled = true;
+    try { ensureAC(); await AC.resume(); } catch(e){}
+    try { bgm.pause(); } catch(e){}
 
-  // Bật âm cho video nguồn (rất quan trọng trên iOS/Zalo):
+    // Bật âm video gốc và vào phần ASCII
+    try { v.removeAttribute('muted'); v.defaultMuted=false; v.muted=false; v.volume=1; } catch(e){}
+    playMainVideo();
+  };
+}
+
+/* Phát video ASCII (ưu tiên tiếng gốc nếu soundEnabled = true) */
+function playMainVideo() {
+  if (soundEnabled) { try { bgm.pause(); } catch(e) {} }
+
   try {
-    v.removeAttribute('muted');         // bỏ thuộc tính muted nếu có
-    v.defaultMuted = !soundEnabled;     // nếu chưa bật âm thì vẫn muted
+    v.removeAttribute('muted');
+    v.defaultMuted = !soundEnabled;
     v.muted = !soundEnabled ? true : false;
-    v.volume = soundEnabled ? 1 : 0;    // có âm thì để 1, không thì 0
+    v.volume = soundEnabled ? 1 : 0;
   } catch(e) {}
 
-  // Bắt đầu phát video (offscreen) và render ASCII
   const startAsciiSafe = () => { startAscii(); };
 
   v.play()
     .then(() => {
-      // Nếu đã bật âm, đảm bảo volume đã mở
       if (soundEnabled) { v.muted = false; v.defaultMuted = false; v.volume = 1; }
       startAsciiSafe();
     })
     .catch(() => {
-      // Nếu vẫn bị chặn, hiện nút để user tap lại (edge case trên một số webview)
+      // fallback nếu bị chặn
       unmute.style.display = 'grid';
       btnUnmute.onclick = async () => {
         unmute.style.display = 'none';
-        soundEnabled = true;            // xác nhận bật âm
+        soundEnabled = true;
         try {
           v.removeAttribute('muted');
           v.defaultMuted = false;
@@ -445,7 +488,6 @@ function playMainVideo() {
       };
     });
 
-  // Khi video ASCII kết thúc → hiện slide + mở lại BGM (nếu người dùng đã bật âm)
   v.addEventListener('ended', () => {
     asciiRunning = false;
     asciiWrap.style.display = 'none';
@@ -454,13 +496,12 @@ function playMainVideo() {
   }, { once: true });
 }
 
-
 /* Video cuối + đại tiệc pháo hoa */
 function playFinalVideo(){
   if (bgm) { bgm.pause(); bgm.currentTime = 0; }
   v2.style.display='block';
-  v2.muted = !soundEnabled;  // nếu chưa bật âm, cho muted để vẫn play được
-  const tryPlay = ()=>{ v2.play().catch(()=>{ /* nếu cần thì user bấm lại nút */ }); };
+  v2.muted = !soundEnabled;
+  const tryPlay = ()=>{ v2.play().catch(()=>{}); };
   tryPlay();
 
   v2.addEventListener('ended', ()=>{
@@ -471,21 +512,13 @@ function playFinalVideo(){
   }, {once:true});
 }
 
-/* START sau khi user bật âm thanh (đảm bảo audio không bị chặn) */
-btnUnmute.addEventListener('click', async () => {
-  unmute.style.display='none';
-  try { AC = new (window.AudioContext||window.webkitAudioContext)(); await AC.resume(); soundEnabled = true; } catch(e){}
-  try { await bgm.play(); } catch(e){}
-  runCountdown(() => { playSlides(introSlides, playMainVideo); });
-});
+/* Khởi động: countdown → introSlides → CỬA CHỜ → video ASCII */
+function startAll() {
+  runCountdown(() => { playSlides(introSlides, showPreVideoGate); });
+}
+window.addEventListener('load', startAll);
 
-/* Nếu người dùng không bấm, vẫn chạy (không âm) sau 1.5s */
-setTimeout(() => {
-  if (unmute.style.display !== 'none') {
-    runCountdown(() => { playSlides(introSlides, playMainVideo); });
-  }
-}, 1500);
-
+/* Nếu cần resize pháo hoa */
 window.addEventListener('resize', ()=>{ if(fxRunning) { const r=window.devicePixelRatio||1; fx.width=Math.floor(innerWidth*r); fx.height=Math.floor(innerHeight*r); fxCtx=fx.getContext('2d'); fxCtx.setTransform(r,0,0,r,0,0);} }, {passive:true});
 </script>
 </body>
