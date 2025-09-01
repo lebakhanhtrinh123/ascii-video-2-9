@@ -10,8 +10,12 @@
     }
     #stage{position:fixed;inset:0;width:100vw;height:100dvh}
 
-    /* Video nguồn (ẩn – chỉ dùng lấy frame cho ASCII) */
-    #v{position:fixed;inset:0;margin:auto;object-fit:contain;z-index:10;display:none}
+    /* Video nguồn: KHÔNG display:none để iOS/Zalo vẫn render frame */
+    #v{
+      position:fixed;left:-9999px;top:-9999px; /* đưa ra ngoài màn */
+      width:2px;height:2px;opacity:0;pointer-events:none;z-index:1;
+      object-fit:contain;
+    }
 
     /* Video cuối (hiển thị bình thường) */
     #v2{
@@ -19,7 +23,7 @@
       max-width:100vw;max-height:100dvh;background:#000;
     }
 
-    /* ASCII layer (fit chuẩn mobile dọc) */
+    /* ASCII layer */
     #asciiWrap{position:fixed;inset:0;display:none;place-items:center;background:#000;z-index:12;overflow:hidden}
     #out{
       white-space:pre;margin:0;padding:0;
@@ -27,7 +31,7 @@
       font-weight:900;line-height:.9;letter-spacing:0;color:#fff;
     }
 
-    /* Countdown + mở màn */
+    /* Countdown */
     #countdownWrap{position:fixed;inset:0;display:none;place-items:center;background:#000;z-index:60}
     #countdown{
       font-size:min(22vw,200px);font-weight:900;letter-spacing:.08em;color:#fff;
@@ -36,7 +40,7 @@
     }
     @keyframes pulse{0%{transform:scale(.6);filter:blur(6px);opacity:.5}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
 
-    /* Lá cờ VN vẫy nhẹ khi countdown */
+    /* Lá cờ VN khi countdown */
     #flagWave{
       position:fixed;left:50%;top:14%;transform:translateX(-50%) rotate(-1deg);
       width:min(76vw,800px);opacity:.18;z-index:55;display:none;
@@ -49,7 +53,7 @@
       100%{transform:translateX(-50%) rotate(-1deg) skewX(0deg)}
     }
 
-    /* Pháo hoa canvas (đè trên tất cả) */
+    /* Pháo hoa */
     #fx{position:fixed;inset:0;z-index:90;pointer-events:none;display:none}
 
     /* Slides */
@@ -68,8 +72,8 @@
     }
 
     /* Unmute prompt */
-    #unmute{position:fixed;inset:0;display:none;place-items:center;z-index:80;background:rgba(0,0,0,.65)}
-    #unmute button{font-weight:800;padding:10px 16px;border-radius:10px;border:none;background:#1e88e5;color:#fff}
+    #unmute{position:fixed;inset:0;display:grid;place-items:center;z-index:80;background:rgba(0,0,0,.65)}
+    #unmute button{font-weight:800;padding:12px 18px;border-radius:12px;border:none;background:#e53935;color:#fff}
 
     audio{display:none}
   </style>
@@ -80,14 +84,18 @@
   <img id="flagWave" alt="VN flag"/>
 
   <!-- video đầu (làm ASCII) -->
-  <video id="v" playsinline crossorigin="anonymous"
+  <video id="v"
+    playsinline webkit-playsinline preload="auto" muted
+    crossorigin="anonymous"
+    disablePictureInPicture controlslist="nodownload noplaybackrate noremoteplayback"
     src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></video>
 
   <!-- ASCII output -->
   <div id="asciiWrap"><pre id="out"></pre></div>
 
-  <!-- video cuối (không ASCII) -->
-  <video id="v2" playsinline controls crossorigin="anonymous"
+  <!-- video cuối -->
+  <video id="v2" playsinline webkit-playsinline controls crossorigin="anonymous"
+    disablePictureInPicture controlslist="nodownload noplaybackrate noremoteplayback"
     src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756715249/7282368217667417445_qxhjll.mp4"></video>
 
   <!-- pháo hoa -->
@@ -100,7 +108,7 @@
     <h1 id="slideText"></h1>
   </div>
 
-  <div id="unmute"><button id="btnUnmute">Bật âm thanh</button></div>
+  <div id="unmute"><button id="btnUnmute">Bắt đầu • Bật âm thanh</button></div>
 </div>
 
 <audio id="bgm" loop crossorigin="anonymous"
@@ -156,7 +164,6 @@ const imageAlbumSlides = [
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756712857/t%E1%BA%A3i_xu%E1%BB%91ng_12_z4tqbb.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756709958/t%E1%BA%A3i_xu%E1%BB%91ng_4_a8fwnz.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756709958/t%E1%BA%A3i_xu%E1%BB%91ng_7_ppqor8.jpg",
-
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697636/t%E1%BA%A3i_xu%E1%BB%91ng_6_limepl.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697607/duan-vietinbank-bao-loc-11-1606889297688_hgc9hr.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697637/thumbnail-logo-vietinbank_zhgkhl.jpg",
@@ -178,7 +185,7 @@ const imageAlbumSlides = [
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714809/00bb93de-8023-4877-a7c0-2b0a4920eb1a_vyauhh.jpg",
 ].map(u => ({ text:"", bgImage:u, overlay:"linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.18))", duration:3500, color:"#fff" }));
 
-/* Những ảnh phải "bình thường" (contain, không crop) */
+/* Những ảnh phải 'contain' (không crop) */
 const containUrls = new Set([
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697607/duan-vietinbank-bao-loc-11-1606889297688_hgc9hr.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697637/thumbnail-logo-vietinbank_zhgkhl.jpg",
@@ -201,20 +208,21 @@ const containUrls = new Set([
 ]);
 
 /* ===== Countdown + FX ===== */
-let AC = null;  // <— only declare once
+let AC = null, soundEnabled = false;
 function ensureAC(){ try{ if(!AC) AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(_){} }
+
 function runCountdown(next) {
   const steps=["3","2","1"]; let i=0;
   countdownWrap.style.display='grid';
   flagWave.style.display='block';
-  startFireworks({intensity:0.55, palette:["#DA251D","#FFDE00"]}); // bật canvas & âm
+  startFireworks({intensity:0.55, palette:["#DA251D","#FFDE00"]}); // visual; có tiếng nếu đã bật âm
 
   const tick=()=>{
     if(i<steps.length){
       countdown.textContent=steps[i++];
       countdown.style.animation='none'; void countdown.offsetWidth;
       countdown.style.animation='pulse 1.1s ease both';
-      burstCenter(["#DA251D","#FFDE00"][i%2]);   // nổ to mỗi nhịp
+      burstCenter(["#DA251D","#FFDE00"][i%2]);
       setTimeout(tick, 1100);
     } else {
       stopFireworks();
@@ -225,7 +233,7 @@ function runCountdown(next) {
   }; tick();
 }
 
-/* ===== Slides (ảnh 'contain' sẽ không crop) ===== */
+/* ===== Slides ===== */
 let isBg1Active = true;
 function playSlides(slides, onDone) {
   let idx = 0;
@@ -243,7 +251,6 @@ function playSlides(slides, onDone) {
     inactiveBg.style.backgroundImage = `url('${s.bgImage}')`;
     inactiveBg.style.backgroundColor = '#000';
 
-    // 'contain' cho ảnh bạn chỉ định, còn lại 'cover' + pan/zoom
     const useContain = containUrls.has(s.bgImage);
     inactiveBg.style.backgroundSize = useContain ? 'contain' : 'cover';
     if (!useContain) {
@@ -253,7 +260,6 @@ function playSlides(slides, onDone) {
       inactiveBg.style.backgroundPosition = '50% 50%';
     }
 
-    // text in
     slideText.style.opacity = 0; slideText.style.transform='translateY(8px)';
     setTimeout(() => {
       slideOverlay.style.background = s.overlay;
@@ -287,9 +293,8 @@ function playSlides(slides, onDone) {
   showOne();
 }
 
-/* ===== ASCII video – fit ngang, không tràn dọc ===== */
-const CHARSET = " .:-=+*#%@"; const COLORIZE_VIDEO = false;
-const GAMMA = 1.2, CONTRAST = 1.15, BLACK_CLIP = 0.06;
+/* ===== ASCII video ===== */
+const CHARSET = " .:-=+*#%@"; const GAMMA = 1.2, CONTRAST = 1.15, BLACK_CLIP = 0.06;
 let asciiRunning=false, grab, gctx, asciiCols=0, asciiRows=0;
 
 function measureWidth(chars, fsPx){
@@ -319,29 +324,53 @@ function asciiCalcGrid(){
   }
   asciiCols=targetCols; asciiRows=targetRows; grab.width=asciiCols; grab.height=asciiRows;
 }
+
 function startAscii(){
   if(asciiRunning) return;
-  asciiSetup(); asciiCalcGrid(); asciiRunning=true; asciiWrap.style.display='grid';
-  const levels=CHARSET.length-1;
-  const render=()=>{
-    if(!asciiRunning) return;
-    if(v.paused){ v.play().catch(()=>{}); }
-    gctx.drawImage(v,0,0,grab.width,grab.height);
-    const buf=gctx.getImageData(0,0,grab.width,grab.height).data;
-    let html=''; for(let y=0;y<asciiRows;y++){ for(let x=0;x<asciiCols;x++){
-      const i=(y*asciiCols+x)*4; let r=buf[i]/255,g=buf[i+1]/255,b=buf[i+2]/255;
-      let L=0.2126*r+0.7152*g+0.0722*b; if(L<BLACK_CLIP)L=0; L=Math.pow(L,1/GAMMA); L=(L-0.5)*CONTRAST+0.5; if(L<0)L=0;if(L>1)L=1;
-      const ch=CHARSET[Math.round(L*(levels))]; html+= ch;
-    } html+='<br/>'; }
-    out.innerHTML=html; requestAnimationFrame(render);
-  }; requestAnimationFrame(render);
+  asciiSetup();
+
+  const startWhenReady = ()=>{
+    if (v.videoWidth && v.videoHeight) {
+      asciiCalcGrid();
+      asciiWrap.style.display='grid';
+      asciiRunning = true;
+
+      const drawFrame = ()=>{
+        gctx.drawImage(v,0,0,grab.width,grab.height);
+        const buf=gctx.getImageData(0,0,grab.width,grab.height).data;
+        const levels=CHARSET.length-1;
+        let html='';
+        for(let y=0;y<asciiRows;y++){
+          for(let x=0;x<asciiCols;x++){
+            const i=(y*asciiCols+x)*4; let r=buf[i]/255,g=buf[i+1]/255,b=buf[i+2]/255;
+            let L=0.2126*r+0.7152*g+0.0722*b; if(L<BLACK_CLIP)L=0; L=Math.pow(L,1/GAMMA); L=(L-0.5)*CONTRAST+0.5; if(L<0)L=0;if(L>1)L=1;
+            html += CHARSET[Math.round(L*levels)];
+          }
+          html+='<br/>';
+        }
+        out.innerHTML=html;
+      };
+
+      if ('requestVideoFrameCallback' in v) {
+        const onFrame = ()=>{ if(!asciiRunning) return; drawFrame(); v.requestVideoFrameCallback(onFrame); };
+        v.requestVideoFrameCallback(onFrame);
+      } else {
+        const loop=()=>{ if(!asciiRunning) return; if(!v.paused) drawFrame(); requestAnimationFrame(loop); };
+        requestAnimationFrame(loop);
+      }
+    } else {
+      requestAnimationFrame(startWhenReady);
+    }
+  };
+  startWhenReady();
 }
+
 addEventListener('resize', ()=>{ if(asciiRunning) asciiCalcGrid(); }, {passive:true});
 
-/* ===== Fireworks engine (Canvas + WebAudio) ===== */
-let fxCtx, dpr=1, rockets=[], particles=[], fxRunning=false, fxPalette=["#DA251D","#FFDE00"], fxIntensity=1, fxRAF=null;
-function resizeFX(){ const r=window.devicePixelRatio||1; dpr=r; fx.width=Math.floor(innerWidth*r); fx.height=Math.floor(innerHeight*r); fxCtx=fx.getContext('2d'); fxCtx.scale(r,r); }
-function startFireworks(opts={}){ fxPalette=opts.palette||fxPalette; fxIntensity=opts.intensity||1; fx.style.display='block'; resizeFX(); fxRunning=true; if(!AC) ensureAC(); loopFX(); }
+/* ===== Fireworks (Canvas + WebAudio) ===== */
+let fxCtx, rockets=[], particles=[], fxRunning=false, fxPalette=["#DA251D","#FFDE00"], fxIntensity=1, fxRAF=null;
+function resizeFX(){ const r=window.devicePixelRatio||1; fx.width=Math.floor(innerWidth*r); fx.height=Math.floor(innerHeight*r); fxCtx=fx.getContext('2d'); fxCtx.setTransform(r,0,0,r,0,0); }
+function startFireworks(opts={}){ fxPalette=opts.palette||fxPalette; fxIntensity=opts.intensity||1; fx.style.display='block'; resizeFX(); fxRunning=true; loopFX(); }
 function stopFireworks(){ fxRunning=false; rockets=[]; particles=[]; fx.style.display='none'; if(fxRAF) cancelAnimationFrame(fxRAF); }
 function loopFX(){
   fxCtx.globalCompositeOperation='destination-out'; fxCtx.fillStyle='rgba(0,0,0,0.4)'; fxCtx.fillRect(0,0,innerWidth,innerHeight);
@@ -357,77 +386,107 @@ function explode(x,y,color,cnt,spread=2.6){ const col=Array.isArray(color)?color
 function drawSpark(x,y,r,fill){ fxCtx.beginPath(); fxCtx.arc(x,y,r,0,Math.PI*2); fxCtx.fillStyle=fill; fxCtx.fill(); }
 function burstCenter(hex){ const col = hex ? ((m=>[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)])(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex))) : paletteColor(); explode(innerWidth*0.5, innerHeight*0.45, col, 160, 3.2); playBoom(innerWidth*0.5, innerHeight*0.45); }
 
-/* Âm thanh pháo hoa (dùng chung AC) */
+/* Âm thanh pháo hoa */
 function playBoom(x,y){
-  if(!AC) return;
+  if(!soundEnabled || !AC) return;
   try{
     const now = AC.currentTime;
-    const pan = (x/innerWidth)*2-1;
     const buffer = AC.createBuffer(1, AC.sampleRate*0.4, AC.sampleRate);
     const data = buffer.getChannelData(0);
     for(let i=0;i<data.length;i++){ data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,2.2); }
     const src = AC.createBufferSource(); src.buffer=buffer;
     const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2200;
     const gain = AC.createGain(); gain.gain.setValueAtTime(0.8, now); gain.gain.exponentialRampToValueAtTime(0.001, now+0.5);
-    const panner = AC.createStereoPanner? AC.createStereoPanner(): null;
-    if(panner){ panner.pan.value=pan; src.connect(lp).connect(gain).connect(panner).connect(AC.destination); }
-    else { src.connect(lp).connect(gain).connect(AC.destination); }
+    src.connect(lp).connect(gain).connect(AC.destination);
     src.start(now);
   }catch(e){}
 }
 
-/* ===== Video logic ===== */
+/* ===== Flow ===== */
+
+/* THAY THẾ TOÀN BỘ HÀM NÀY */
 function playMainVideo() {
-  v.style.display = 'none';
-  bgm.volume = 1;
+  // Nếu người dùng đã bấm bật âm → ưu tiên tiếng từ video gốc, tắt BGM trong lúc chạy ASCII
+  if (soundEnabled) {
+    try { bgm.pause(); } catch(e) {}
+  }
 
-  const playAll = () => {
-    unmute.style.display = 'none';
-    ensureAC();
-    const p1 = bgm.play(); const p2 = v.play();
-    if(p1) p1.catch(()=>{}); if(p2) p2.catch(()=>{});
-  };
+  // Bật âm cho video nguồn (rất quan trọng trên iOS/Zalo):
+  try {
+    v.removeAttribute('muted');         // bỏ thuộc tính muted nếu có
+    v.defaultMuted = !soundEnabled;     // nếu chưa bật âm thì vẫn muted
+    v.muted = !soundEnabled ? true : false;
+    v.volume = soundEnabled ? 1 : 0;    // có âm thì để 1, không thì 0
+  } catch(e) {}
 
-  v.addEventListener('loadedmetadata', () => { startAscii(); }, { once:true });
+  // Bắt đầu phát video (offscreen) và render ASCII
+  const startAsciiSafe = () => { startAscii(); };
 
-  v.play().then(() => {
-    bgm.play().catch(()=>{});
-    startAscii();
-  }).catch(() => {
-    unmute.style.display = 'grid';
-    btnUnmute.onclick = playAll;
-  });
+  v.play()
+    .then(() => {
+      // Nếu đã bật âm, đảm bảo volume đã mở
+      if (soundEnabled) { v.muted = false; v.defaultMuted = false; v.volume = 1; }
+      startAsciiSafe();
+    })
+    .catch(() => {
+      // Nếu vẫn bị chặn, hiện nút để user tap lại (edge case trên một số webview)
+      unmute.style.display = 'grid';
+      btnUnmute.onclick = async () => {
+        unmute.style.display = 'none';
+        soundEnabled = true;            // xác nhận bật âm
+        try {
+          v.removeAttribute('muted');
+          v.defaultMuted = false;
+          v.muted = false;
+          v.volume = 1;
+          await v.play();
+        } catch (e) {}
+        startAsciiSafe();
+      };
+    });
 
+  // Khi video ASCII kết thúc → hiện slide + mở lại BGM (nếu người dùng đã bật âm)
   v.addEventListener('ended', () => {
     asciiRunning = false;
     asciiWrap.style.display = 'none';
+    if (soundEnabled) { try { bgm.currentTime = 0; bgm.play(); } catch(e) {} }
     playSlides(flagTextSlides, () => playSlides(imageAlbumSlides, playFinalVideo));
   }, { once: true });
 }
 
+
 /* Video cuối + đại tiệc pháo hoa */
 function playFinalVideo(){
-  bgm.pause(); bgm.currentTime = 0;
+  if (bgm) { bgm.pause(); bgm.currentTime = 0; }
   v2.style.display='block';
-  v2.currentTime = 0;
-  const tryPlay = ()=>{ v2.play().catch(()=>{ unmute.style.display='grid'; btnUnmute.onclick=()=>{ unmute.style.display='none'; ensureAC(); v2.play().catch(()=>{}); }; }); };
+  v2.muted = !soundEnabled;  // nếu chưa bật âm, cho muted để vẫn play được
+  const tryPlay = ()=>{ v2.play().catch(()=>{ /* nếu cần thì user bấm lại nút */ }); };
   tryPlay();
 
   v2.addEventListener('ended', ()=>{
     v2.style.display='none';
-    ensureAC();
     startFireworks({intensity:1.8, palette:["#DA251D","#FFDE00","#ffffff"]});
     for(let i=0;i<6;i++){ setTimeout(()=>burstCenter("#FFDE00"), i*250); }
     setTimeout(()=>{ stopFireworks(); }, 10000);
   }, {once:true});
 }
 
-/* ===== START ===== */
-function startAll() {
+/* START sau khi user bật âm thanh (đảm bảo audio không bị chặn) */
+btnUnmute.addEventListener('click', async () => {
+  unmute.style.display='none';
+  try { AC = new (window.AudioContext||window.webkitAudioContext)(); await AC.resume(); soundEnabled = true; } catch(e){}
+  try { await bgm.play(); } catch(e){}
   runCountdown(() => { playSlides(introSlides, playMainVideo); });
-}
-window.addEventListener('load', startAll);
-window.addEventListener('resize', ()=>{ if(fxRunning) resizeFX(); }, {passive:true});
+});
+
+/* Nếu người dùng không bấm, vẫn chạy (không âm) sau 1.5s */
+setTimeout(() => {
+  if (unmute.style.display !== 'none') {
+    runCountdown(() => { playSlides(introSlides, playMainVideo); });
+  }
+}, 1500);
+
+window.addEventListener('resize', ()=>{ if(fxRunning) { const r=window.devicePixelRatio||1; fx.width=Math.floor(innerWidth*r); fx.height=Math.floor(innerHeight*r); fxCtx=fx.getContext('2d'); fxCtx.setTransform(r,0,0,r,0,0);} }, {passive:true});
 </script>
 </body>
 </html>
