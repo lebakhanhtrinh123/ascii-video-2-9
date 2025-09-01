@@ -6,22 +6,29 @@
   <title>VietinBank 2/9 Countdown</title>
   <style>
     html,body{
-      margin:0;height:100dvh;width:100vw;background:#000;display:grid;place-items:center;overflow:hidden;
-      color:#fff;
+      margin:0;height:100dvh;width:100vw;background:#000;display:grid;place-items:center;overflow:hidden;color:#fff;
     }
     #stage{position:fixed;inset:0;width:100vw;height:100dvh}
 
-    /* Video Player */
-    #v {
-      position: fixed;
-      top: 50%; left: 50%;
-      min-width: 100%; min-height: 100%;
-      width: auto; height: auto;
-      transform: translateX(-50%) translateY(-50%);
-      /* SỬA LỖI: Đổi từ cover sang contain để video không bị cắt */
-      object-fit: contain;
-      z-index: 10;
-      display: none;
+    /* Video nguồn (ẩn – chỉ dùng lấy frame cho ASCII) */
+    #v{
+      position: fixed; inset: 0; margin: auto;
+      object-fit: contain; z-index: 10; display: none;
+    }
+
+    /* ASCII layer (fit chuẩn mobile dọc) */
+    #asciiWrap{
+      position:fixed; inset:0; display:none; place-items:center;
+      background:#000; z-index:12; overflow:hidden;
+    }
+    #out{
+      white-space:pre; margin:0; padding:0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      font-weight:900;
+      line-height:0.9;   /* chiều cao ô ký tự */
+      letter-spacing:0;  /* liền mạch */
+      color:#fff;        /* trắng–đen cho rõ */
+      /* font-size set động bằng JS */
     }
 
     /* Countdown */
@@ -33,41 +40,25 @@
     }
     @keyframes pulse{0%{transform:scale(.6);filter:blur(6px);opacity:.5}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
 
-    /* === HIỆU ỨNG SLIDE MỚI === */
+    /* Slides */
     #slideContainer{
       position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;z-index:20;overflow:hidden;
     }
-    .slide-bg {
-      position: absolute;
-      inset: 0;
-      background-position: center;
-      /* SỬA LỖI: Đổi từ cover sang contain để ảnh không bị cắt */
-      background-size: contain;
-      background-repeat: no-repeat;
-      opacity: 0;
-      transform: scale(1.1); /* Bắt đầu zoom vào */
-      transition: opacity 1.5s ease-in-out; /* Thời gian mờ chồng */
+    .slide-bg{
+      position:absolute; inset:0; background-position:center; background-size:contain; background-repeat:no-repeat;
+      opacity:0; transform:scale(1.1); transition:opacity 1.5s ease-in-out;
     }
-    .slide-bg.visible {
-      opacity: 1;
-      transform: scale(1); /* Zoom ra nhẹ nhàng */
-    }
+    .slide-bg.visible{opacity:1; transform:scale(1)}
     #slideOverlay{position:absolute;inset:0;opacity:.6;mix-blend-mode:overlay}
     #slideText{
       position:relative;margin:0 4vw;font-family:"Times New Roman",serif;font-weight:900;
       font-size:min(12vw,72px);letter-spacing:.04em;color:#fff;
-      text-shadow: 0 0 15px rgba(0,0,0,0.7);
-      transition: opacity 0.75s ease-in-out;
-      opacity: 0;
+      text-shadow:0 0 15px rgba(0,0,0,0.7); transition:opacity .75s ease-in-out; opacity:0;
     }
 
     /* Unmute prompt */
-    #unmute{
-      position:fixed;inset:0;display:none;place-items:center;z-index:50;background:rgba(0,0,0,.65)
-    }
-    #unmute button{
-      font-weight:800;padding:10px 16px;border-radius:10px;border:none;background:#1e88e5;color:#fff
-    }
+    #unmute{position:fixed;inset:0;display:none;place-items:center;z-index:50;background:rgba(0,0,0,.65)}
+    #unmute button{font-weight:800;padding:10px 16px;border-radius:10px;border:none;background:#1e88e5;color:#fff}
 
     audio{display:none}
   </style>
@@ -76,8 +67,12 @@
 <div id="stage">
   <div id="countdownWrap"><div id="countdown"></div></div>
 
+  <!-- Video nguồn (ẩn) -->
   <video id="v" playsinline crossorigin="anonymous"
-   src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></video>
+    src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756374279/bac-ho-2-9_pllr7b.mp4"></video>
+
+  <!-- ASCII output -->
+  <div id="asciiWrap"><pre id="out"></pre></div>
 
   <div id="slideContainer">
     <div class="slide-bg" id="slideBg1"></div>
@@ -90,7 +85,7 @@
 </div>
 
 <audio id="bgm" loop crossorigin="anonymous"
- src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756622154/M%C3%A1u_%C4%90%E1%BB%8F_Da_V%C3%A0ng_mp3cut.net_vhw8k0.mp3"></audio>
+  src="https://res.cloudinary.com/dj5uo6y8w/video/upload/v1756622154/M%C3%A1u_%C4%90%E1%BB%8F_Da_V%C3%A0ng_mp3cut.net_vhw8k0.mp3"></audio>
 
 <script>
 /* ==== DOM ==== */
@@ -105,59 +100,75 @@ const slideOverlay = document.getElementById('slideOverlay');
 const slideText = document.getElementById('slideText');
 const unmute = document.getElementById('unmute');
 const btnUnmute = document.getElementById('btnUnmute');
+const asciiWrap = document.getElementById('asciiWrap');
+const out = document.getElementById('out');
 
 /* ==== SLIDE DATA ==== */
-const FLAG_IMG_SRC = "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756436056/hinh-nen-co-viet-nam-cho-may-tinh-1_wwoocv.jpg";
-const BG_BLUE="https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756709958/t%E1%BA%A3i_xu%E1%BB%91ng_7_ppqor8.jpg";
+const FLAG_IMG_SRC = "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756710992/t%E1%BA%A3i_xu%E1%BB%91ng_8_oeytsl.jpg";
+const BG_BLUE="https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756710926/vietinbank_resized_675x1200_jin7en.webp";
 
 const introSlides = [
-    { text: "PHÒNG DỊCH VỤ KHÁCH HÀNG", bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
-    { text: "VIETINBANK",                 bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
-    { text: "CHI NHÁNH BẢO LỘC",          bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
-    { text: "CHÚC MỪNG",                  bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 2500 },
-    { text: "ĐẠI LỄ 2/9",                 bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 3000 },
+  { text: "PHÒNG DỊCH VỤ KHÁCH HÀNG", bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
+  { text: "VIETINBANK",                 bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
+  { text: "CHI NHÁNH BẢO LỘC",          bgImage: BG_BLUE, overlay: "linear-gradient(180deg, rgba(0,114,188,.55), rgba(0,114,188,.55))", color: "#ffffff", duration: 2500 },
+  { text: "CHÚC MỪNG",                  bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 2500 },
+  { text: "ĐẠI LỄ 2/9",                 bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#ff1a1a", duration: 3000 },
 ];
 
 const flagTextSlides = [
-    { text: "Tự hào màu cờ sắc áo", duration: 2500 },
-    { text: "VietinBank đồng hành cùng Tổ quốc vươn xa", duration: 3000 },
-    { text: "Giữ vững niềm tin, lan tỏa khát vọng", duration: 3000 },
-    { text: "Chung tay dựng xây đất nước phồn vinh", duration: 3000 },
-    { text: "Vì một Việt Nam ngày càng thịnh vượng", duration: 3000 },
-    { text: "Văn minh và tỏa sáng trên trường quốc tế", duration: 3500 },
+  { text: "Tự hào màu cờ sắc áo", duration: 2500 },
+  { text: "VietinBank đồng hành cùng Tổ quốc vươn xa", duration: 3000 },
+  { text: "Giữ vững niềm tin, lan tỏa khát vọng", duration: 3000 },
+  { text: "Chung tay dựng xây đất nước phồn vinh", duration: 3000 },
+  { text: "Vì một Việt Nam ngày càng thịnh vượng", duration: 3000 },
+  { text: "Văn minh và tỏa sáng trên trường quốc tế", duration: 3500 },
 ].map(slide => ({ ...slide, bgImage: FLAG_IMG_SRC, overlay: "linear-gradient(180deg, rgba(218,37,29,.45), rgba(218,37,29,.45))", color: "#fff" }));
 
 const imageAlbumSlides = [
- "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625496/t%E1%BA%A3i_xu%E1%BB%91ng_2_rrqetv.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_300/v1756625495/Ho_Hoan_Kiem_Hanoi_Vietnam__Stock_Photo_-_Image_of_flag_temple__5825156_ey7vcj.jpg",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756712857/T%E1%BB%B1_h%C3%A0o_l%C3%A0_ng%C6%B0%E1%BB%9Di_Vi%E1%BB%87t_Nam__pxhfdu.jpg  ",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756712858/t%E1%BA%A3i_xu%E1%BB%91ng_11_djhpyr.jpg",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756712857/t%E1%BA%A3i_xu%E1%BB%91ng_10_y8eodl.jpg",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756712857/t%E1%BA%A3i_xu%E1%BB%91ng_9_di6ros.jpg",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756712857/t%E1%BA%A3i_xu%E1%BB%91ng_12_z4tqbb.jpg",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756709958/t%E1%BA%A3i_xu%E1%BB%91ng_4_a8fwnz.jpg",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756709958/t%E1%BA%A3i_xu%E1%BB%91ng_7_ppqor8.jpg",
+
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697636/t%E1%BA%A3i_xu%E1%BB%91ng_6_limepl.jpg",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697607/duan-vietinbank-bao-loc-11-1606889297688_hgc9hr.jpg",
+  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697637/thumbnail-logo-vietinbank_zhgkhl.jpg",
+
 
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697607/duan-vietinbank-bao-loc-11-1606889297688_hgc9hr.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697599/cds_f_ihnztg.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697588/41696cb3-4138-4165-b525-b958055d37dc_ll9foq.jpg",
   "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697581/85586510-6212-458e-b0cf-852dcfde1c20_lwuvej.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697637/thumbnail-logo-vietinbank_zhgkhl.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697636/t%E1%BA%A3i_xu%E1%BB%91ng_6_limepl.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697636/t%E1%BA%A3i_xu%E1%BB%91ng_mjinrb.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697609/t%E1%BA%A3i_xu%E1%BB%91ng_5_uwibxl.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697609/t%E1%BA%A3i_xu%E1%BB%91ng_3_oybocj.jpg",
 
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697609/National_Liberation_Front_of_South_Vietnam_Flag_Vietnam_War_adl6hv.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697608/images_1_qbw2iu.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697608/images_uyzlbo.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697582/c369743c-f7ae-4a2d-ac8c-fdd7a548f341_qtebcs.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697581/85586510-6212-458e-b0cf-852dcfde1c20_lwuvej.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697580/219797d4-482f-4b48-a9fb-b20d32271763_iuepja.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697580/8b26d5dc-1110-4595-b7c3-a23f45fe3d62_xpw1tx.jpg",
 
-    "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697579/7dd2a94c-198e-4c37-b163-dbfee9ef2055_gygsnp.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697579/3b715f9b-8ec4-4b30-ad82-8824bcda0295_k5xjjk.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756625496/POSTER_K%E1%BB%B6_NI%E1%BB%86M_CHI%E1%BA%BEN_TH%E1%BA%AENG_%C4%90I%E1%BB%86N_BI%C3%8AN_PH%E1%BB%A6___2024_-_Duy%C3%AAn_V%C5%A9_k9tbjn.jpg",
-  "https://res.cloudinary.com/dj5uo6y8w/image/upload/w_1024/v1756625496/POSTER_K%E1%BB%B6_NI%E1%BB%86M_CHI%E1%BA%BEN_TH%E1%BA%AENG_%C4%90I%E1%BB%86N_BI%C3%8AN_PH%E1%BB%A6___2024_-_Duy%C3%AAn_V%C5%A9_k9tbjn.jpg",
+    "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697581/34343468-23d6-41fa-bf95-2fbf5dd107ae_tfdrj2.jpg",
+      "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697580/8b26d5dc-1110-4595-b7c3-a23f45fe3d62_xpw1tx.jpg",
+        "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697580/219797d4-482f-4b48-a9fb-b20d32271763_iuepja.jpg",
+          "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697579/7dd2a94c-198e-4c37-b163-dbfee9ef2055_gygsnp.jpg",
+            "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697579/3b715f9b-8ec4-4b30-ad82-8824bcda0295_k5xjjk.jpg",
+              "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756697582/c369743c-f7ae-4a2d-ac8c-fdd7a548f341_qtebcs.jpg",
+                "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714817/91ec37f0-3a02-43ba-97f2-cf5d11bbb15a_qngkj1.jpg",
+                  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714813/e2a67aa3-9c6c-4712-a4f1-a0e5758cf3b5_fafy52.jpg",
+
+
+                      "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714812/da9848e1-700a-4b6b-890e-39b2c33a4f7a_mnjigg.jpg",
+          "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714812/ab32e3b0-e3ea-4577-a1aa-f96eb2d8c78f_u2xmdt.jpg",
+            "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714812/da9848e1-700a-4b6b-890e-39b2c33a4f7a_mnjigg.jpg",
+              "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714812/ab32e3b0-e3ea-4577-a1aa-f96eb2d8c78f_u2xmdt.jpg",
+                "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714812/91566172-aacf-45e4-a1a6-ac46e1fc579f_eu2asq.jpg",
+                  "hhttps://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714811/a0005b28-8a07-47aa-9bea-c3b7e4e12887_natbmv.jpg",
+
+
+                          "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714811/730e5ea3-5674-4754-910d-0c0c221d952b_nutmq4.jpg",
+              "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714810/549c6d99-05d8-478e-977a-043587dc18bc_c3ad1i.jpg",
+                "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714809/3cf0ab07-39c9-405d-99c8-3529a93e9f13_huuzga.jpg  ",
+                  "https://res.cloudinary.com/dj5uo6y8w/image/upload/v1756714809/00bb93de-8023-4877-a7c0-2b0a4920eb1a_vyauhh.jpg",
 ].map(imgSrc => ({ text: "", bgImage: imgSrc, overlay: "linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1))", duration: 3500, color: "#fff" }));
 
 /* ===== CORE FUNCTIONS ===== */
 
-// Countdown: 3, 2, 1...
+/* Countdown */
 function runCountdown(next) {
   const steps=["3","2","1"]; let i=0;
   countdownWrap.style.display='grid';
@@ -174,7 +185,7 @@ function runCountdown(next) {
   }; tick();
 }
 
-// === HIỆU ỨNG SLIDE MỚI: Cross-fade + Ken Burns ===
+/* Slides */
 let isBg1Active = true;
 function playSlides(slides, onDone) {
   let idx = 0;
@@ -182,74 +193,186 @@ function playSlides(slides, onDone) {
 
   function showOne() {
     if (idx >= slides.length) {
-        const activeBg = isBg1Active ? slideBg1 : slideBg2;
-        activeBg.classList.remove('visible');
-        slideText.style.opacity = 0;
-        setTimeout(() => {
-            slideContainer.style.display = 'none';
-            onDone && onDone();
-        }, 1500);
+      const activeBg = isBg1Active ? slideBg1 : slideBg2;
+      activeBg.classList.remove('visible');
+      slideText.style.opacity = 0;
+      setTimeout(() => {
+        slideContainer.style.display = 'none';
+        onDone && onDone();
+      }, 1500);
       return;
     }
-    
     const s = slides[idx++];
-    
     const activeBg = isBg1Active ? slideBg1 : slideBg2;
     const inactiveBg = isBg1Active ? slideBg2 : slideBg1;
 
-    // 1. Chuẩn bị slide tiếp theo trên background đang ẩn
     inactiveBg.style.backgroundImage = `url('${s.bgImage}')`;
-    
-    // 2. Cập nhật chữ và overlay (cho chữ mờ đi rồi hiện ra)
     slideText.style.opacity = 0;
     setTimeout(() => {
-        slideOverlay.style.background = s.overlay;
-        slideText.textContent = s.text;
-        slideText.style.color = s.color;
-        slideText.style.opacity = 1;
-    }, 750); // Hiện chữ ra ở giữa hiệu ứng chuyển cảnh
+      slideOverlay.style.background = s.overlay;
+      slideText.textContent = s.text;
+      slideText.style.color = s.color;
+      slideText.style.opacity = 1;
+    }, 750);
 
-    // 3. Đặt thời gian cho hiệu ứng zoom (Ken Burns)
     const zoomDuration = s.duration / 1000;
     activeBg.style.transition = `opacity 1.5s ease-in-out, transform ${zoomDuration}s ease-out`;
     inactiveBg.style.transition = `opacity 1.5s ease-in-out, transform ${zoomDuration}s ease-out`;
-    
-    // 4. Bắt đầu chuyển cảnh: mờ chồng và zoom
+
     activeBg.classList.remove('visible');
     inactiveBg.classList.add('visible');
-
-    // 5. Đảo vai trò của 2 background cho lần kế tiếp
     isBg1Active = !isBg1Active;
-    
-    // 6. Lên lịch cho slide tiếp theo
+
     setTimeout(showOne, s.duration);
   }
   showOne();
 }
 
+/* ===== ASCII video – fit chính xác chiều ngang, không tràn dọc ===== */
+const CHARSET = " .:-=+*#%@";   // ít ký tự -> dễ nhìn
+const COLORIZE_VIDEO = false;    // trắng–đen cho rõ
+const GAMMA = 1.2, CONTRAST = 1.15, BLACK_CLIP = 0.06;
 
-// Video player
+let asciiRunning=false, grab, gctx, asciiCols=0, asciiRows=0;
+
+/* đo thực tế độ rộng ký tự ở font-size đang đặt */
+function measureWidth(chars, fsPx){
+  const probe = document.createElement('span');
+  probe.style.cssText = `
+    position:fixed;left:-9999px;top:-9999px;visibility:hidden;
+    font-family:${getComputedStyle(out).fontFamily};
+    font-weight:${getComputedStyle(out).fontWeight};
+    font-size:${fsPx}px;line-height:${getComputedStyle(out).lineHeight};
+    white-space:pre;letter-spacing:${getComputedStyle(out).letterSpacing};
+  `;
+  probe.textContent = chars;
+  document.body.appendChild(probe);
+  const w = probe.getBoundingClientRect().width;
+  document.body.removeChild(probe);
+  return w;
+}
+
+function asciiSetup(){
+  if(grab) return;
+  grab=document.createElement('canvas');
+  gctx=grab.getContext('2d',{willReadFrequently:true});
+}
+
+/* Tính lưới + hiệu chỉnh font-size:
+   - WIDTH(out) ≈ 98% viewport
+   - HEIGHT(out) ≤ 92% viewport
+*/
+function asciiCalcGrid(){
+  const vw = v.videoWidth || 640;
+  const vh = v.videoHeight || 360;
+  const isPortrait = innerHeight > innerWidth;
+
+  // 1) số cột mong muốn theo bề ngang (chỉnh 6/7 để chữ to/nhỏ)
+  let targetCols = Math.floor(innerWidth / (isPortrait ? 6.6 : 5.8));
+  targetCols = Math.max(70, Math.min(targetCols, isPortrait ? 160 : 240));
+
+  // 2) hàng theo tỉ lệ video
+  let targetRows = Math.floor(targetCols * (vh / vw));
+
+  // 3) tìm font-size để width ≈ 98vw (đo thực tế)
+  const targetW = innerWidth * 0.98;
+  let fs = Math.max(10, Math.min(32, innerWidth / (targetCols * 0.6))); // guess
+  for(let k=0;k<4;k++){
+    const w = measureWidth("W".repeat(targetCols), fs) || (targetCols*fs*0.6);
+    fs = Math.max(9, Math.min(40, fs * (targetW / w)));
+  }
+  out.style.fontSize = fs + "px";
+
+  // 4) nếu cao quá, giảm hàng (giữ tỉ lệ), tinh chỉnh lại một lần
+  const estH = targetRows * fs * 0.90;     // 0.90 ≈ line-height
+  const maxH  = innerHeight * 0.92;
+  if(estH > maxH){
+    targetRows = Math.floor(maxH / (fs * 0.90));
+    targetCols = Math.max(40, Math.floor(targetRows * (vw / vh)));
+    const w2 = measureWidth("W".repeat(targetCols), fs) || (targetCols*fs*0.6);
+    fs = Math.max(9, Math.min(40, fs * ((innerWidth*0.98) / w2)));
+    out.style.fontSize = fs + "px";
+  }
+
+  asciiCols = targetCols;
+  asciiRows = targetRows;
+
+  grab.width  = asciiCols;
+  grab.height = asciiRows;
+}
+
+function startAscii(){
+  if(asciiRunning) return;
+  asciiSetup(); asciiCalcGrid();
+  asciiRunning = true;
+  asciiWrap.style.display='grid';
+
+  const levels = CHARSET.length - 1;
+
+  const render = () => {
+    if(!asciiRunning) return;
+    if(v.paused){ v.play().catch(()=>{}); }
+
+    // Lấy frame xuống lưới thấp
+    gctx.drawImage(v, 0, 0, grab.width, grab.height);
+    const buf = gctx.getImageData(0,0,grab.width,grab.height).data;
+
+    let html = '';
+    for(let y=0;y<asciiRows;y++){
+      for(let x=0;x<asciiCols;x++){
+        const i = (y*asciiCols + x)*4;
+        let r=buf[i]/255, g=buf[i+1]/255, b=buf[i+2]/255;
+
+        // Luminance + gamma/contrast + black clip
+        let L = 0.2126*r + 0.7152*g + 0.0722*b;
+        if (L < BLACK_CLIP) L = 0;
+        L = Math.pow(L, 1/GAMMA);
+        L = (L - 0.5) * CONTRAST + 0.5;
+        if (L < 0) L = 0; if (L > 1) L = 1;
+
+        const ch = CHARSET[Math.round(L * levels)];
+        if (COLORIZE_VIDEO) {
+          const R = Math.round(r*255), G = Math.round(g*255), B = Math.round(b*255);
+          html += `<span style="color:rgb(${R},${G},${B})">${ch}</span>`;
+        } else {
+          html += ch;
+        }
+      }
+      html += '<br/>';
+    }
+    out.innerHTML = html;
+
+    requestAnimationFrame(render);
+  };
+  requestAnimationFrame(render);
+}
+
+addEventListener('resize', ()=>{ if(asciiRunning) asciiCalcGrid(); }, {passive:true});
+
+/* ===== Video player (ASCII) ===== */
 function playMainVideo() {
-  v.style.display = 'block';
+  v.style.display = 'none';           // ẩn video gốc
   bgm.volume = 1;
 
   const playAll = () => {
     unmute.style.display = 'none';
-    const bgmPromise = bgm.play();
-    const vPromise = v.play();
-    if(bgmPromise !== undefined) bgmPromise.catch(e => {});
-    if(vPromise !== undefined) vPromise.catch(e => {});
+    const p1 = bgm.play(); const p2 = v.play();
+    if(p1) p1.catch(()=>{}); if(p2) p2.catch(()=>{});
   };
+
+  v.addEventListener('loadedmetadata', () => { startAscii(); }, { once:true });
 
   v.play().then(() => {
     bgm.play().catch(()=>{});
+    startAscii();
   }).catch(() => {
     unmute.style.display = 'grid';
     btnUnmute.onclick = playAll;
   });
 
   v.addEventListener('ended', () => {
-    v.style.display = 'none';
+    asciiRunning = false;
+    asciiWrap.style.display = 'none';
     playSlides(flagTextSlides, () => playSlides(imageAlbumSlides, null));
   }, { once: true });
 }
@@ -260,7 +383,6 @@ function startAll() {
     playSlides(introSlides, playMainVideo);
   });
 }
-
 window.addEventListener('load', startAll);
 </script>
 </body>
